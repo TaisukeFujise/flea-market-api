@@ -1,8 +1,8 @@
 # flea-market-api
 
-3DスキャンとAIで商品の傷を検出・可視化するフリマアプリのバックエンドAPI。
+3DスキャンとAIで商品の傷を検出・可視化するフリマアプリの**バックエンドAPI**。
 
-**フロントエンドリポジトリ:** [flea-market-web](https://github.com/TaisukeFujise/flea-market-web) 
+**-> フロントエンドリポジトリ:** [flea-market-web](https://github.com/TaisukeFujise/flea-market-web) 
 
 ---
 

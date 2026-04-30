@@ -1,14 +1,12 @@
-# DB設計書
-
+DB設計書
 次世代フリマアプリ
 
----
 
-## 1. テーブル一覧
+# 1. テーブル一覧
 
 | テーブル名 | カテゴリ | 役割 |
 | --- | --- | --- |
-| users | 認証・ユーザー | ユーザー情報管理 |
+| users | 認証・ユーザー | ユーザー情報管理（Firebase UID紐づけ） |
 | products | 商品 | 出品商品の情報管理 |
 | product_images | 商品 | 商品写真の管理 |
 | product_models | 商品 | 3DモデルGLBの管理 |
@@ -18,19 +16,21 @@
 | orders | 取引 | 購入・取引の管理 |
 | message_rooms | コミュニケーション | DMルームの管理 |
 | messages | コミュニケーション | メッセージの管理 |
+| comments | コミュニケーション | 商品へのコメント・質問管理 |
 | likes | その他 | いいねの管理 |
 | viewing_history | その他 | 閲覧履歴の管理 |
 
----
 
-## 2. テーブル詳細
 
-### 2-1. users
+
+# 2. テーブル詳細
+
+## 2-1. users
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
 | id | UUID | PRIMARY KEY | ユーザーID |
-| google_id | VARCHAR(255) | UNIQUE NOT NULL | Google OAuthのユーザーID |
+| firebase_uid | VARCHAR(255) | UNIQUE NOT NULL | Firebase AuthenticationのユーザーID |
 | email | VARCHAR(255) | UNIQUE NOT NULL | メールアドレス |
 | display_name | VARCHAR(255) | NOT NULL | 表示名 |
 | avatar_url | VARCHAR(500) | NULL許容 | プロフィール画像URL（Cloud Storage） |
@@ -39,7 +39,9 @@
 | updated_at | TIMESTAMP | NOT NULL | 更新日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-2. products
+
+
+## 2-2. products
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -56,9 +58,10 @@
 | updated_at | TIMESTAMP | NOT NULL | 更新日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-3. product_images
 
-> angleカラムはRaycasterでのカメラ位置再現に使用
+
+## 2-3. product_images
+angleカラムはRaycasterでのカメラ位置再現に使用
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -69,7 +72,9 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-4. product_models
+
+
+## 2-4. product_models
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -81,7 +86,9 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | updated_at | TIMESTAMP | NOT NULL | 更新日時 |
 
-### 2-5. categories
+
+
+## 2-5. categories
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -91,9 +98,10 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | updated_at | TIMESTAMP | NOT NULL | 更新日時 |
 
-### 2-6. damages
 
-> pixel座標はYOLO/Gemini Visionの検出結果。model座標はRaycaster/Geminiで変換後の3D座標。両方NULL許容で実装フェーズで判断
+
+## 2-6. damages
+pixel座標はYOLO/Gemini Visionの検出結果。model座標はRaycaster/Geminiで変換後の3D座標。両方NULL許容で実装フェーズで判断
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -110,9 +118,10 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-7. damage_reports
 
-> 購入者が受け取り後に3Dモデル上でタップして報告。YOLOの再学習データとして活用。返金・補償の根拠になる
+
+## 2-7. damage_reports
+購入者が受け取り後に3Dモデル上でタップして報告。YOLOの再学習データとして活用。返金・補償の根拠になる
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -127,9 +136,10 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-8. orders
 
-> priceは購入時点のproducts.priceをコピーして保存。出品者が後から価格変更しても影響しない
+
+## 2-8. orders
+priceは購入時点のproducts.priceをコピーして保存。出品者が後から価格変更しても影響しない
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -141,24 +151,24 @@
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | updated_at | TIMESTAMP | NOT NULL | 更新日時 |
 
-### 2-9. message_rooms
 
-> 購入前（order_id=NULL）と購入後（order_id有）の両方に対応
+
+## 2-9. message_rooms
+DMは購入後の取引連絡専用。購入前の質問はcommentsテーブルで管理
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
 | id | UUID | PRIMARY KEY | ルームID |
-| order_id | UUID | NULL許容 FK→orders | 注文ID（購入前はNULL） |
-| product_id | UUID | NOT NULL FK→products | 商品ID |
-| buyer_id | UUID | NOT NULL FK→users | 購入者（質問者）ID |
+| order_id | UUID | NOT NULL FK→orders | 注文ID（購入後のみ作成） |
+| buyer_id | UUID | NOT NULL FK→users | 購入者ID |
 | seller_id | UUID | NOT NULL FK→users | 出品者ID |
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
-| UNIQUE | (product_id, buyer_id) | | 同じユーザーが同じ商品に複数ルームを作れない |
 
-### 2-10. messages
 
-> 既読管理はスコープ外
+
+## 2-10. messages
+既読管理はスコープ外
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -169,7 +179,23 @@
 | created_at | TIMESTAMP | NOT NULL | 送信日時 |
 | deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
 
-### 2-11. likes
+
+
+## 2-11. comments
+商品詳細ページのQ&Aセクション。全ユーザーに公開される
+
+| カラム名 | 型 | 制約 | 説明 |
+| --- | --- | --- | --- |
+| id | UUID | PRIMARY KEY | コメントID |
+| product_id | UUID | NOT NULL FK→products | 商品ID |
+| user_id | UUID | NOT NULL FK→users | コメント投稿者ID |
+| content | TEXT | NOT NULL | コメント内容 |
+| created_at | TIMESTAMP | NOT NULL | 作成日時 |
+| deleted_at | TIMESTAMP | NULL許容 | 論理削除日時 |
+
+
+
+## 2-12. likes
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -177,9 +203,11 @@
 | user_id | UUID | NOT NULL FK→users | ユーザーID |
 | product_id | UUID | NOT NULL FK→products | 商品ID |
 | created_at | TIMESTAMP | NOT NULL | 作成日時 |
-| UNIQUE | (user_id, product_id) | | 同じ商品への二重いいね防止 |
+| UNIQUE | (user_id, product_id) |  | 同じ商品への二重いいね防止 |
 
-### 2-12. viewing_history
+
+
+## 2-13. viewing_history
 
 | カラム名 | 型 | 制約 | 説明 |
 | --- | --- | --- | --- |
@@ -187,15 +215,15 @@
 | user_id | UUID | NOT NULL FK→users | ユーザーID |
 | product_id | UUID | NOT NULL FK→products | 商品ID |
 | viewed_at | TIMESTAMP | NOT NULL | 最終閲覧日時 |
-| UNIQUE | (user_id, product_id) | | 同じ商品の重複なし・viewed_atを更新 |
+| UNIQUE | (user_id, product_id) |  | 同じ商品の重複なし・viewed_atを更新 |
 
----
 
-## 3. 設計方針
 
-- 全テーブルのIDはUUID（推測されにくい・分散環境に強い）
-- 論理削除：deleted_atカラムで管理（取引履歴を残すため）
-- 金額：INT型（円単位で管理）
-- 3Dモデルのジョブ管理：product_modelsのstatusカラムで管理
-- damages/damage_reportsの座標：pixel座標・3D座標ともNULL許容（実装フェーズで判断）
-- 認証：Google OAuth + JWT（アクセストークンのみ・有効期限7日）
+
+# 3. 設計方針
+- ・全テーブルのIDはUUID（推測されにくい・分散環境に強い）
+- ・論理削除：deleted_atカラムで管理（取引履歴を残すため）
+- ・金額：INT型（円単位で管理）
+- ・3Dモデルのジョブ管理：product_modelsのstatusカラムで管理
+- ・damages/damage_reportsの座標：pixel座標・3D座標ともNULL許容（実装フェーズで判断）
+- ・認証：Firebase Authentication + 独自JWT（アクセストークンのみ・有効期限7日）

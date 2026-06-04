@@ -42,7 +42,7 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 
 
 ## 3-3. 持続可能な改善サイクル
-購入者が商品を受け取った後、3Dモデル上で実際の状態を報告できる仕組みを導入する。この報告データがYOLOの再学習データとなり、AIが継続的に賢くなっていく。
+購入者が商品を受け取った後、商品画像上で傷箇所を囲って報告できる仕組みを導入する。この報告データをVertex AI Multimodal Embeddingでベクトル化してfeedbackとして蓄積し、次回の傷検出でGeminiへのfew-shotとして活用することでAIが継続的に精度向上する。
 - 報告が「自分を守るための行動」に直結（傷の報告が返金・補償の根拠になる）
 - プラットフォームが成長するほど信頼性が上がる構造
 
@@ -79,11 +79,11 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 | --- | --- |
 | いいね機能 | 商品へのいいね実装 |
 | 商品検索 | キーワード検索・カテゴリフィルター・価格帯フィルター・写真検索 |
-| 認証・認可強化 | Firebase Authentication + 独自JWT・ロールベースアクセス制御 |
-| 3Dスキャン×傷検出 | ガイド付き撮影UI→3Dモデル生成→傷検出→3D上ピン留め表示 |
-| 傷報告フロー | 購入者が3Dモデル上で傷位置を報告→YOLO再学習データとして活用 |
+| 認証・認可強化 | Firebase Authentication |
+| 3Dスキャン×傷検出 | ガイド付き撮影UI→Gemini Vision傷検出（bbox）→3D上ピン留め表示（3Dフェーズ） |
+| 傷報告フロー | 購入者が商品画像上で傷箇所を囲って報告→Embeddingとして蓄積しGeminiのfew-shotに反映 |
 | テスト・CI/CD | 単体テスト＋CI/CDパイプライン整備 |
-| 多様な通信方式 | REST / WebSocket / gRPC の使い分け |
+| 多様な通信方式 | REST / WebSocket の使い分け |
 | グラスモーフィズムUI | 3D周辺のみliquid glass等のグラスモーフィズムを採用 |
 
 
@@ -94,16 +94,16 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 | 領域 | 技術 | 役割 |
 | --- | --- | --- |
 | フロントエンド | React (Vercel) | UI実装・Three.js 3Dビューア |
-| 認証 | Firebase Authentication | Google OAuth・独自JWT発行・Firebase Admin SDK |
-| バックエンド (メイン) | Go (CloudRun) | REST/WebSocket・Gemini Vision呼び出し・Meshy API呼び出し |
-| バックエンド (AI) | Python (CloudRun) | YOLOv8傷検出・3D座標変換 |
-| データベース | CloudSQL | メインDB |
-| AI: 物体認識 | Gemini Vision API | 商品状態判定・写真検索・AIアシスタント |
-| AI: 傷検出 | YOLOv8 | 傷・汚れの位置検出（ピクセル座標） |
-| AI: 3D生成 | Meshy or Tripo3D API | 写真→3Dモデル自動生成 |
-| 3D表示 | Three.js (@react-three/fiber) | 3Dビューア・傷ピン留め表示 |
-| 通信 | REST / WebSocket / gRPC | 用途に応じた使い分け |
-| ストレージ | Cloud Storage | 商品写真・3DモデルGLBファイル・YOLO学習画像の保存・配信 |
+| 認証 | Firebase Authentication | Firebase Admin SDKでIDトークン検証 |
+| バックエンド | Go (CloudRun) | REST/WebSocket・Gemini Vision・Meshy API・Vertex AI呼び出し |
+| データベース | CloudSQL (PostgreSQL + pgvector) | メインDB・Embeddingベクトル検索 |
+| AI: 傷検出・状態判定 | Gemini Vision API (structured output) | 傷bbox検出・condition判定・説明文生成 |
+| AI: フィードバックEmbedding | Vertex AI Multimodal Embedding | 傷報告画像のベクトル化・few-shot検索 |
+| AI: 3D生成 | Meshy API | 写真→3Dモデル自動生成（3Dフェーズ） |
+| 3D表示 | Three.js (@react-three/fiber) | 3Dビューア・傷ピン留め表示（3Dフェーズ） |
+| 通信 | REST / WebSocket | 用途に応じた使い分け |
+| ストレージ | Cloud Storage | 商品写真・3DモデルGLBファイルの保存・配信 |
+| インフラ管理 | Terraform | Cloud Run・Cloud SQL・Cloud Storage等の全インフラをコードで管理 |
 | CI/CD | Cloud Build | GitHubリポジトリ・ブランチ指定→自動ビルド→CloudRunへデプロイ |
 | シークレット管理 | Secret Manager | Gemini/Meshy APIキー・DB接続情報などの機密情報管理 |
 
@@ -111,8 +111,7 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 
 ## 通信方式の使い分け
 - REST：商品CRUD・認証・購入フロー（基本的なHTTPリクエスト）
-- WebSocket：メッセージ機能・既読のリアルタイム反映
-- gRPC：GoバックエンドからPython YOLOサービスを呼ぶ内部通信
+- WebSocket：メッセージ機能・傷検出完了通知・3Dモデル生成完了通知
 
 
 # 7. コア機能詳細：3Dスキャン×傷検出
@@ -134,38 +133,29 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 - damages.model_x/y/zの3D座標にピンマーカーを配置
 - グラスモーフィズムのパネルで「右側面に約2cmの傷があります。状態：良い」と表示
 - 商品状態の説明文生成（Gemini Vision）
-- Gemini Visionに写真と傷検出結果を渡して全体サマリーを生成
-- YOLOを使う場合はその結果も合わせて渡す
+- Gemini Visionに写真を渡して全体サマリーを生成（1回のAPI呼び出しで傷検出・状態判定・説明文生成を同時実施）
 - products.condition_noteに全体サマリー文を保存
 - damages.descriptionに個別の傷の説明文を保存
 
 
-## 7-2. 実装フェーズで判断する部分（宙ぶらりん）
-以下2点は実装フェーズで精度を確認してから最終判断する
+## 7-2. 確定した実装方針
 
-① 傷検出：YOLOv8 vs Gemini Vision
+① 傷検出：**Gemini Vision API (structured output) に確定**
+- YOLOv8・Pythonサービス・gRPCは使用しない
+- Gemini に5方向画像を一括送信し、bbox座標・damage_type・condition・condition_noteをJSONで取得
+- 画像は1024×1024に正規化してCloud Storageに保存
 
-| 比較 | YOLOv8（Pythonサービス） | Gemini Vision APIのみ |
-| --- | --- | --- |
-| 精度 | 学習次第で高い | 試してみないとわからない |
-| 実装コスト | 高い（学習データ収集・Pythonサービス・gRPC） | 低い（Goで完結） |
-| 学習データ | 必要（100〜300枚） | 不要 |
-
-
-② 2D→3D座標変換：Raycaster vs Gemini 2.5 Pro
-
-| 比較 | Raycaster（React Three Fiber） | Gemini 2.5 Pro |
-| --- | --- | --- |
-| 仕組み | 撮影角度を再現したカメラから光線を飛ばしGLBの交点を取得 | 元写真と3Dモデル画像を渡して面の位置を自然言語で推論 |
-| 精度 | GLBの向き次第・正規化が必要 | 「右側面の下部」程度の精度・試してみないとわからない |
-| 方針 | まず実装して精度を確認する | Raycasterの精度が不十分な場合の保険 |
+② 2D→3D座標変換：**Raycaster（3Dフェーズ・保留）**
+- Three.jsで撮影角度を再現したカメラからbbox中心座標にRayを飛ばしGLBと交差する3D座標を取得
+- フロント処理。変換後にPATCH APIでdamages.model_x/y/zを更新
 
 
 
-## 7-3. 持続可能な学習サイクル
-- 購入者が商品受け取り後、3Dモデル上で傷位置を報告
+## 7-3. 持続可能な改善サイクル
+- 購入者が商品受け取り後、商品画像上で傷箇所を囲って報告
 - 報告は「返金・補償の根拠」になるため自分を守るための自然な動機が生まれる
-- 報告データがYOLOの再学習データとして蓄積→精度が継続的に向上
+- 報告画像をVertex AI Multimodal Embeddingでベクトル化→feedback_embeddingsに蓄積
+- 同カテゴリの新商品出品時にpgvectorで類似検索→Geminiへのfewーshotとして活用→精度が継続的に向上
 
 
 # 8. システムアーキテクチャ
@@ -174,23 +164,18 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 React (Vercel)
 ↓ REST / WebSocket
 Go API (CloudRun) ← メインバックエンド
-├─ Gemini Vision API（商品状態判定・写真検索）
-├─ Meshy/Tripo3D API（3Dモデル生成）
+├─ Gemini Vision API（傷検出・状態判定）
+├─ Vertex AI Multimodal Embedding（フィードバック）
+├─ Meshy API（3Dモデル生成）
 ├─ Cloud Storage（写真・3Dモデルの保存）
-├─ CloudSQL（直接アクセス）
-↓ gRPC（傷検出のみ）
-Python Service (CloudRun) ← YOLOv8専用
-└─ CloudSQL（直接アクセス）
-
-※ GoとPythonはそれぞれCloudSQLに直接アクセスします。Go→PythonのgRPCは傷検出の呼び出しのみです。
+└─ CloudSQL (PostgreSQL + pgvector)
 
 
 ## 8-2. 設計方針
 - アーキテクチャ：Clean Architecture（拡張性・保守性を重視）
-- GoからGemini VisionとMeshy APIを直接呼び出す
-- YOLOv8はPythonサービスとして別途CloudRunにデプロイ
-- GoからgRPCでPythonサービスを呼び出す
-- 最初はGoのみで動くものを作り、後からPythonサービスを追加する段階的な開発
+- GoからGemini Vision・Vertex AI・Meshy APIを直接呼び出す
+- Pythonサービス・gRPCは使用しない（Goで完結）
+- 2Dフェーズ→フィードバックフロー→3Dフェーズの段階的な開発
 
 
 # 9. 開発スケジュール（2ヶ月）
@@ -201,7 +186,7 @@ Python Service (CloudRun) ← YOLOv8専用
 | Week3-4 | 必須機能バックエンド | 認証・商品CRUD・購入フロー・DM機能のAPI実装 |
 | Week5 | フロントエンド実装 | 必須機能のUI・API繋ぎ込み |
 | Week6 | 3Dモデル生成 | ガイド付き撮影UI・Meshy API組み込み・Three.js 3Dビューア |
-| Week7 | 傷検出実装 | YOLOv8学習・Pythonサービス・gRPC・3D座標変換・ピン留め表示 |
+| Week7 | 3Dフェーズ・仕上げ | Meshy API・Three.js 3Dビューア・Raycaster座標変換・傷ピン留め表示 |
 | Week8 | 仕上げ・発表準備 | デモデータ投入・発表スライド作成・デモリハーサル |
 
 
@@ -217,7 +202,7 @@ Python Service (CloudRun) ← YOLOv8専用
 - CI/CDパイプラインの雛形作成
 - DB設計
 - テーブル・カラム・リレーション定義
-- 主要テーブル：users / products / product_images / product_models / defects / defect_reports / orders / messages / likes / categories
+- 主要テーブル：users / products / product_images / product_models / damages / damage_detection_summaries / damage_reports / orders / messages / likes / categories / feedback_embeddings
 - API設計
 - OpenAPIでエンドポイント・リクエスト・レスポンス定義
 - ワイヤーフレーム
@@ -231,7 +216,7 @@ Python Service (CloudRun) ← YOLOv8専用
 | AI活用 | ◎ | Gemini Vision（状態判定・写真検索・AIアシスタント）をコアに活用 |
 | 新規ユーザー体験 | ◎ | 「誰が見ても同じ評価」という既存フリマにない体験 |
 | 独自性・創造性 | ◎ | 傷スキャン×フリマという組み合わせは既存サービスにない |
-| 内部設計 | ◎ | Clean Architecture / REST+WebSocket+gRPCの使い分け |
+| 内部設計 | ◎ | Clean Architecture / REST+WebSocketの使い分け・pgvectorフィードバックループ |
 | 機能実装 | ○ | 必須機能＋AI機能を2ヶ月で実装 |
 | デザイン | ○ | グラスモーフィズム（3D周辺のみ）でメリハリをつける |
 | 発表・デモ | ◎ | 「撮影→3D生成→傷ピン留め」をその場で見せる |

@@ -22,9 +22,8 @@ flowchart LR
 
     subgraph LISTING_FLOW[出品フロー]
         SHOOTING[📸 ガイド付き撮影\n5方向固定]
-        GENERATING[⏳ 3D生成待機\nMeshy API・約30秒]
-        PRODUCT_INFO[📝 商品情報入力\nAI自動生成確認・編集]
-        LISTING_CONFIRM[✔️ 出品確認]
+        PRODUCT_INFO[📝 商品情報入力\n傷検出バックグラウンド実行中]
+        LISTING_CONFIRM[✔️ 出品確認\n傷検出完了で出品ボタン活性化]
     end
 
     subgraph TRADE_SELLER[取引・出品者]
@@ -52,8 +51,7 @@ flowchart LR
     LISTING -->|取引中セクションタップ| TRADE_DETAIL_SELLER
     PRODUCT_EDIT -->|保存| LISTING
 
-    SHOOTING -->|5方向撮影完了| GENERATING
-    GENERATING -->|3D生成完了| PRODUCT_INFO
+    SHOOTING -->|5方向撮影完了| PRODUCT_INFO
     PRODUCT_INFO -->|次へ| LISTING_CONFIRM
     LISTING_CONFIRM -->|出品する| LISTING
 
@@ -74,7 +72,6 @@ flowchart LR
     style PURCHASE_CONFIRM fill:#f59e0b,color:#fff
     style PURCHASE_COMPLETE fill:#10b981,color:#fff
     style SHOOTING fill:#ec4899,color:#fff
-    style GENERATING fill:#ec4899,color:#fff
     style PRODUCT_INFO fill:#ec4899,color:#fff
     style LISTING_CONFIRM fill:#ec4899,color:#fff
     style TRADE_DETAIL_SELLER fill:#f97316,color:#fff

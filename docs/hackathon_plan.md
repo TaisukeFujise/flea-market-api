@@ -105,7 +105,7 @@ AmazonやGoogleはすでに3D商品表示を導入している。しかしそれ
 | ストレージ | Cloud Storage | 商品写真・3DモデルGLBファイルの保存・配信 |
 | インフラ管理 | Terraform | Cloud Run・Cloud SQL・Cloud Storage等の全インフラをコードで管理 |
 | CI/CD | Cloud Build | GitHubリポジトリ・ブランチ指定→自動ビルド→CloudRunへデプロイ |
-| シークレット管理 | Secret Manager | Gemini/Meshy APIキー・DB接続情報などの機密情報管理 |
+| シークレット管理 | Secret Manager / ADC | 外部APIキー・DB接続情報はSecret Manager管理。Google Cloud系サービス（Firebase/Vertex AI/Cloud Storage）はADCで認証 |
 
 
 

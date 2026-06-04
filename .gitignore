@@ -1,0 +1,26 @@
+# 環境変数
+.env
+.env.local
+
+# Go バイナリ
+/cmd/server/server
+/cmd/migrate/migrate
+
+# Air（ホットリロード）
+tmp/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+*.tfvars
+terraform.tfvars
+override.tf
+override.tf.json
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/

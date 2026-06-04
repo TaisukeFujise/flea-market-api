@@ -49,3 +49,61 @@ Go API (Cloud Run)                    ← このリポジトリ
 
 アーキテクチャは Clean Architecture に基づいて設計。
 
+---
+
+## ローカル開発
+
+### 前提条件
+
+- [Docker](https://docs.docker.com/get-docker/) / Docker Compose
+- [Go 1.25.5+](https://go.dev/dl/)
+- [golang-migrate CLI](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate)
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install)（Gemini / Vertex AI 利用時）
+
+### セットアップ
+
+```bash
+# 1. 環境変数ファイルを作成
+cp .env.example .env
+# .env を編集して各値を設定
+
+# 2. Google ADC（Gemini / Vertex AI 用）
+gcloud auth application-default login
+
+# 3. コンテナ起動（アプリ + PostgreSQL）
+make up
+
+# 4. マイグレーション実行（コンテナ起動後）
+make migrate-local
+```
+
+### 主要 make コマンド
+
+| コマンド | 説明 |
+|---|---|
+| `make up` | Docker Compose でアプリ + DB を起動 |
+| `make rebuild` | キャッシュなしでビルドして起動 |
+| `make down` | コンテナ停止 |
+| `make down-v` | コンテナ停止 + volume 削除 |
+| `make dev` | ローカルで直接サーバーを起動（要 DB 起動済み） |
+| `make migrate-local` | ローカル DB にマイグレーション適用 |
+| `make migrate-local-down` | ローカル DB のマイグレーションをロールバック |
+
+### 環境変数
+
+| 変数名 | 説明 |
+|---|---|
+| `DATABASE_URL` | PostgreSQL 接続 URL（例: `postgres://postgres:pass@localhost:5432/flea?sslmode=disable`） |
+
+---
+
+## デプロイ
+
+`main` ブランチへの push で GitHub Actions が自動実行：
+
+1. Cloud SQL Auth Proxy 経由でマイグレーション
+2. Docker イメージをビルドして Artifact Registry に push
+3. Cloud Run にデプロイ
+
+GCP 認証は Workload Identity Federation を使用（サービスアカウントキー不要）。
+

@@ -21,7 +21,11 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	e.HTTPErrorHandler = handler.ErrorHandler
 	e.Use(middleware.Recover())
 	e.Use(middleware.Secure())
-	e.Use(middleware.CORS(os.Getenv("FRONTEND_ORIGIN")))
+	allowOrigins := []string{"*"}
+	if origin := os.Getenv("FRONTEND_ORIGIN"); origin != "" {
+		allowOrigins = []string{origin}
+	}
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: allowOrigins}))
 
 	authMW := mw.AuthMiddleware{Client: fb, DB: db}
 	_ = authMW

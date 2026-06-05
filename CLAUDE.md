@@ -55,6 +55,12 @@ internal/
 
 **Auth flow**: `Authorization: Bearer <Firebase ID Token>` → `middleware.AuthMiddleware.AuthRequired` verifies token, checks `users.deleted_at IS NULL`, sets `firebase_uid` in Echo context.
 
+## Coding conventions
+
+- Repository interfaces are defined in the **consumer package** (handler defines `UserService`, service defines `UserRepository`).
+- Domain types carry no JSON tags — handlers map to their own request/response structs.
+- `domain.XxxUpdate` uses all-pointer fields for PATCH operations; SQL uses `COALESCE($n, column)` to keep existing values when nil.
+
 ## Error handling
 
 `apperror.AppError` carries an `ErrCode` string and wraps the original error. Handlers never marshal `AppError` directly — `handler.ErrorHandler` (the Echo `HTTPErrorHandler`) converts it to `ErrorResponse{error: {code, message}}`. Use `ErrCode.New(msg)` or `ErrCode.Wrap(err, msg)` to create errors in service/repository layers.

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
-	"strings"
 
 	"firebase.google.com/go/v4/auth"
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -24,8 +23,8 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	e.HTTPErrorHandler = handler.ErrorHandler
 	e.Use(middleware.Recover())
 	e.Use(middleware.Secure())
-	if origins := os.Getenv("FRONTEND_ORIGINS"); origins != "" {
-		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: strings.Split(origins, ",")}))
+	if origin := os.Getenv("FRONTEND_ORIGIN"); origin != "" {
+		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: []string{origin}}))
 	}
 
 	authMW := mw.AuthMiddleware{Client: fb, DB: db}

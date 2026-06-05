@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
 	"github.com/labstack/echo/v5"
 )
@@ -38,7 +39,10 @@ func (u *UserHandler) Register(c *echo.Context) error {
 		return err
 	}
 
-	uid, _ := c.Get("firebase_uid").(string)
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
 
 	user := domain.User{
 		ID:          uid,
@@ -59,7 +63,10 @@ type UpdateUserRequest struct {
 
 func (u *UserHandler) Update(c *echo.Context) error {
 	var req UpdateUserRequest
-	id, _ := c.Get("firebase_uid").(string)
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
 	ctx := c.Request().Context()
 	if err := c.Bind(&req); err != nil {
 		return err
@@ -87,7 +94,10 @@ type GetUserResponse struct {
 }
 
 func (u *UserHandler) Get(c *echo.Context) error {
-	id, _ := c.Get("firebase_uid").(string)
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
 	ctx := c.Request().Context()
 	user, err := u.service.Get(ctx, id)
 	if err != nil {
@@ -103,7 +113,10 @@ func (u *UserHandler) Get(c *echo.Context) error {
 }
 
 func (u *UserHandler) Delete(c *echo.Context) error {
-	id, _ := c.Get("firebase_uid").(string)
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
 	ctx := c.Request().Context()
 	if err := u.service.Delete(ctx, id); err != nil {
 		return err

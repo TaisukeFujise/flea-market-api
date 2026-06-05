@@ -39,5 +39,11 @@ func (s *UserService) Get(ctx context.Context, id string) (domain.User, error) {
 }
 
 func (s *UserService) Delete(ctx context.Context, id string) error {
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	// Firebase アカウントの削除を試みる。失敗しても DB 側の soft-delete は完了しているため
+	// ミドルウェアがアクセスを拒否し続ける。孤立した Firebase アカウントは許容する。
+	_ = s.fb.DeleteUser(ctx, id)
+	return nil
 }

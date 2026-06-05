@@ -39,7 +39,7 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	authed.Use(authMW.AuthRequired)
 
 	// users
-	authed.POST("/users/register", userHandler.Register)
+	public.POST("/users/register", userHandler.Register, authMW.TokenOnly)
 	authed.GET("/me", userHandler.Get)
 	authed.PATCH("/me", userHandler.Update)
 	authed.DELETE("/me", userHandler.Delete)

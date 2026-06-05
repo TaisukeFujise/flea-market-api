@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -45,17 +47,23 @@ func (h *ImageHandler) Upload(c *echo.Context) error {
 		if fh.Size > maxImageSize {
 			return apperror.ErrValidation.New(angle + " image exceeds 10MB limit")
 		}
-		ct := fh.Header.Get("Content-Type")
-		if ct != "image/jpeg" && ct != "image/png" {
-			return apperror.ErrValidation.New(angle + " image must be JPEG or PNG")
-		}
 		f, err := fh.Open()
 		if err != nil {
 			return apperror.ErrInternal.Wrap(err, "failed to open "+angle+" image")
 		}
 		defer f.Close()
+
+		buf := make([]byte, 512)
+		n, err := f.Read(buf)
+		if err != nil && err != io.EOF {
+			return apperror.ErrInternal.Wrap(err, "failed to read "+angle+" image")
+		}
+		ct := http.DetectContentType(buf[:n])
+		if ct != "image/jpeg" && ct != "image/png" {
+			return apperror.ErrValidation.New(angle + " image must be JPEG or PNG")
+		}
 		uploads = append(uploads, service.ImageUpload{
-			Reader:      f,
+			Reader:      io.MultiReader(bytes.NewReader(buf[:n]), f),
 			ContentType: ct,
 			Angle:       angle,
 		})

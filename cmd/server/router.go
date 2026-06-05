@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"net/http"
 	"os"
 	"strings"
 
@@ -27,18 +28,70 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	}
 
 	authMW := mw.AuthMiddleware{Client: fb, DB: db}
-	_ = authMW
-	// - user
+
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo, fb)
-	userHandler := handler.NewUserHandler(userService)
-	_ = userHandler
+	_ = handler.NewUserHandler(userService)
+
+	api := e.Group("/api")
+	public := api.Group("")
+	authed := api.Group("")
+	authed.Use(authMW.AuthRequired)
+
+	// users
+	authed.POST("/users/register", notImplemented)
+	authed.GET("/me", notImplemented)
+	authed.PATCH("/me", notImplemented)
+	authed.DELETE("/me", notImplemented)
+	authed.GET("/me/likes", notImplemented)
+	authed.GET("/me/viewing-history", notImplemented)
+
+	// categories
+	public.GET("/categories", notImplemented)
+
+	// products
+	public.GET("/products", notImplemented)
+	public.GET("/products/:id", notImplemented)
+	authed.POST("/products", notImplemented)
+	authed.PATCH("/products/:id", notImplemented)
+	authed.DELETE("/products/:id", notImplemented)
+
+	// images
+	authed.POST("/images", notImplemented)
+
+	// damages
+	public.GET("/products/:id/damages", notImplemented)
+	authed.PATCH("/damages/:id", notImplemented)
+
+	// comments
+	public.GET("/products/:id/comments", notImplemented)
+	authed.POST("/products/:id/comments", notImplemented)
+	authed.DELETE("/comments/:id", notImplemented)
+
+	// likes
+	authed.POST("/products/:id/likes", notImplemented)
+	authed.DELETE("/products/:id/likes", notImplemented)
+
+	// orders
+	authed.POST("/products/:id/orders", notImplemented)
+	authed.GET("/orders", notImplemented)
+	authed.GET("/orders/:id", notImplemented)
+	authed.PATCH("/orders/:id", notImplemented)
+	authed.POST("/orders/:id/damage-reports", notImplemented)
+
+	// message rooms
+	authed.GET("/message-rooms/:id/messages", notImplemented)
+	authed.POST("/message-rooms/:id/messages", notImplemented)
+
+	// websocket
+	e.GET("/ws", notImplemented)
+
 	return e
 }
 
-// func notImplemented(c *echo.Context) error {
-// 	return c.NoContent(http.StatusNotImplemented)
-// }
+func notImplemented(c *echo.Context) error {
+	return c.NoContent(http.StatusNotImplemented)
+}
 
 type CustomValidator struct {
 	validator *validator.Validate

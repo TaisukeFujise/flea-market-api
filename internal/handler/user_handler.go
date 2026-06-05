@@ -1,6 +1,21 @@
 package handler
 
-type UserService interface{}
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
+	"github.com/TaisukeFujise/flea-market-api/internal/domain"
+	"github.com/labstack/echo/v5"
+)
+
+type UserService interface {
+	Register(ctx context.Context, user domain.User) error
+	Update(ctx context.Context, id string, userUpdate domain.UserUpdate) error
+	Get(ctx context.Context, id string) (domain.User, error)
+	Delete(ctx context.Context, id string) error
+}
 
 type UserHandler struct {
 	service UserService
@@ -8,4 +23,103 @@ type UserHandler struct {
 
 func NewUserHandler(s UserService) *UserHandler {
 	return &UserHandler{service: s}
+}
+
+type RegisterUserRequest struct {
+	DisplayName string  `json:"display_name" validate:"required,max=255"`
+	AvatarURL   *string `json:"avatar_url"   validate:"omitempty,http_url"`
+}
+
+func (u *UserHandler) Register(c *echo.Context) error {
+	var req RegisterUserRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	user := domain.User{
+		ID:          uid,
+		DisplayName: req.DisplayName,
+		AvatarURL:   req.AvatarURL,
+	}
+	ctx := c.Request().Context()
+	if err := u.service.Register(ctx, user); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusCreated)
+}
+
+type UpdateUserRequest struct {
+	DisplayName *string `json:"display_name" validate:"omitempty,max=255"`
+	AvatarURL   *string `json:"avatar_url"   validate:"omitempty,http_url"`
+}
+
+func (u *UserHandler) Update(c *echo.Context) error {
+	var req UpdateUserRequest
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+	ctx := c.Request().Context()
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	userUpdate := domain.UserUpdate{
+		DisplayName: req.DisplayName,
+		AvatarURL:   req.AvatarURL,
+	}
+	if err := u.service.Update(ctx, id, userUpdate); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+type GetUserResponse struct {
+	ID          string    `json:"id"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   *string   `json:"avatar_url"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (u *UserHandler) Get(c *echo.Context) error {
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+	ctx := c.Request().Context()
+	user, err := u.service.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, GetUserResponse{
+		ID:          user.ID,
+		DisplayName: user.DisplayName,
+		AvatarURL:   user.AvatarURL,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+	})
+}
+
+func (u *UserHandler) Delete(c *echo.Context) error {
+	id, ok := c.Get("firebase_uid").(string)
+	if !ok || id == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+	ctx := c.Request().Context()
+	if err := u.service.Delete(ctx, id); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
 }

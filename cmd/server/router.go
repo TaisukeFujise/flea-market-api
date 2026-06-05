@@ -33,6 +33,10 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	userService := service.NewUserService(userRepo, fb)
 	userHandler := handler.NewUserHandler(userService)
 
+	categoryRepo := repository.NewCategoryRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
 	api := e.Group("/api")
 	public := api.Group("")
 	authed := api.Group("")
@@ -47,7 +51,7 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	authed.GET("/me/viewing-history", notImplemented)
 
 	// categories
-	public.GET("/categories", notImplemented)
+	public.GET("/categories", categoryHandler.GetAll)
 
 	// products
 	public.GET("/products", notImplemented)

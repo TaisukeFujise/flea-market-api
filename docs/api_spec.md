@@ -102,15 +102,7 @@ Authorization: Bearer <Firebase ID Token>
 }
 ```
 
-**Response 201**
-```json
-{
-  "id": "firebase_uid",
-  "display_name": "山田太郎",
-  "avatar_url": "https://storage.example.com/avatars/xxx.jpg",
-  "created_at": "2026-06-01T00:00:00Z"
-}
-```
+**Response 201** No Content
 
 **Errors**
 | Status | code | 条件 |
@@ -130,7 +122,8 @@ Authorization: Bearer <Firebase ID Token>
   "id": "firebase_uid",
   "display_name": "山田太郎",
   "avatar_url": "https://storage.example.com/avatars/xxx.jpg",
-  "created_at": "2026-06-01T00:00:00Z"
+  "created_at": "2026-06-01T00:00:00Z",
+  "updated_at": "2026-06-01T00:00:00Z"
 }
 ```
 
@@ -149,15 +142,7 @@ Authorization: Bearer <Firebase ID Token>
 }
 ```
 
-**Response 200**
-```json
-{
-  "id": "firebase_uid",
-  "display_name": "山田太郎",
-  "avatar_url": "https://storage.example.com/avatars/xxx.jpg",
-  "updated_at": "2026-06-01T00:00:00Z"
-}
-```
+**Response 204** No Content
 
 ---
 

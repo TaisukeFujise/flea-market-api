@@ -31,7 +31,7 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo, fb)
-	_ = handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService)
 
 	api := e.Group("/api")
 	public := api.Group("")
@@ -39,10 +39,10 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	authed.Use(authMW.AuthRequired)
 
 	// users
-	authed.POST("/users/register", notImplemented)
-	authed.GET("/me", notImplemented)
-	authed.PATCH("/me", notImplemented)
-	authed.DELETE("/me", notImplemented)
+	authed.POST("/users/register", userHandler.Register)
+	authed.GET("/me", userHandler.Get)
+	authed.PATCH("/me", userHandler.Update)
+	authed.DELETE("/me", userHandler.Delete)
 	authed.GET("/me/likes", notImplemented)
 	authed.GET("/me/viewing-history", notImplemented)
 

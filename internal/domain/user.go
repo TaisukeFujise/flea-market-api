@@ -10,3 +10,8 @@ type User struct {
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
 }
+
+type UserUpdate struct {
+	DisplayName *string
+	AvatarURL   *string
+}

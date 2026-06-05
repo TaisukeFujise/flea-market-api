@@ -12,7 +12,36 @@
 
 ---
 
-## Issue 一覧
+## 実装フェーズ
+
+```
+フリマ本体フェーズ: #1 〜 #12
+AIフェーズ:       #13 〜 #16（後回し）
+```
+
+AIフェーズでは #3・#5・#12 の stub を実装に差し替える。
+
+---
+
+## シードデータについて
+
+API で作成できないマスターデータは `db/seeds/` に SQL ファイルとして管理する。
+
+```
+db/seeds/
+  001_categories.sql   # カテゴリマスター（必須）
+```
+
+- `make seed-local` で流し込めるよう Makefile にターゲットを追加済み
+- シードは `make migrate-local` の後に実行する
+
+**シードデータが必要な Issue**
+- **#2** カテゴリ一覧 API — `001_categories.sql` がないと空レスポンスになる
+- **#5** 商品出品 API — `category_id` が外部キーのため、カテゴリが存在しないと出品できない
+
+---
+
+## フリマ本体フェーズ（#1〜#12）
 
 ### #1 ユーザー登録・プロフィールCRUD API
 
@@ -29,28 +58,15 @@
 - `cmd/server/router.go` — 4ルート登録・DI完成
 
 **備考**
-- DELETE は DB 論理削除のみ（Firebase Auth は残す）
+- DELETE は DB 論理削除 + Cloud Scheduler による Firebase Auth の遅延削除
+  - API 側: `deleted_at` を更新するのみ（即時応答）
+  - Cloud Scheduler: 定期的に `deleted_at IS NOT NULL` のユーザーを Firebase Auth から削除
+  - `terraform/` に Cloud Scheduler ジョブの定義を追加する
 - Register は 409 CONFLICT を返す
 
 ---
 
-### #2 いいね一覧・閲覧履歴 API
-
-**エンドポイント**
-- `GET /api/me/likes`
-- `GET /api/me/viewing-history`
-
-**実装内容**
-- `internal/repository/user_repository.go` — GetLikesByUserID / GetViewingHistoryByUserID（ページネーション付き）
-- `internal/service/user_service.go` — GetMyLikes / GetMyViewingHistory
-- `internal/handler/user_handler.go` — 2ハンドラ追加
-
-**備考**
-- 共通ページネーション（limit / offset）対応
-
----
-
-### #3 カテゴリ一覧 API
+### #2 カテゴリ一覧 API
 
 **エンドポイント**
 - `GET /api/categories`
@@ -67,6 +83,33 @@
 
 ---
 
+### #3 画像アップロード API（GCSのみ・傷検出は stub）
+
+**エンドポイント**
+- `POST /api/images` (multipart/form-data)
+
+**実装内容**
+- GCS への画像アップロード
+- `internal/repository/product_image_repository.go` — Create（5枚分）
+- `internal/repository/damage_detection_summary_repository.go` — Create
+
+**stub（AIフェーズ #13 で差し替える）**
+- 傷検出AI呼び出しは行わない
+- `damage_detection_summaries` にデフォルト値でレコードを INSERT する
+  ```sql
+  condition      = 'good'
+  condition_note = ''
+  ```
+- `damages` テーブルへの INSERT は行わない
+- `product_models` レコードは作成しない（#15 で追加）
+- レスポンスの `"damage_detection"` は `"processing"` を返すが、完了通知（WebSocket）は送らない
+
+**備考**
+- ファイル形式: JPEG / PNG、10MB 以下
+- Google ADC 必須（`gcloud auth application-default login`）
+
+---
+
 ### #4 商品一覧・詳細 API
 
 **エンドポイント**
@@ -79,10 +122,14 @@
 - `internal/service/product_service.go` — ListProducts / GetProduct
 - `internal/handler/product_handler.go` — 2ハンドラ・レスポンス構造体
 
+**stub（AIフェーズ完了後に自動解消）**
+- `damage_count` は常に `0`（damages テーブルが空のため）
+- `model` フィールドは常に `null`（product_models レコードが存在しないため）
+- #13・#15 が完了すれば追加実装なしで実データが返るようになる
+
 **備考**
 - 一覧のクエリパラメータ: `q`, `category_id`, `min_price`, `max_price`, `condition`, `sort`
 - 詳細: 認証済みの場合のみ `liked` フラグを返す・閲覧履歴を記録
-- `model` フィールドは product_models を JOIN して返す
 
 ---
 
@@ -97,51 +144,19 @@
 - `internal/repository/product_repository.go` — Create / Update / SoftDelete
 - `internal/repository/product_image_repository.go` — UpdateProductID（image_ids を product に紐付け）
 - `internal/service/product_service.go` — CreateProduct / UpdateProduct / DeleteProduct
+- `internal/handler/product_handler.go` — 3ハンドラ追加
+
+**stub（AIフェーズ #13・#15 で差し替える）**
+- 出品時に `damage_detection_summaries` から `condition` / `condition_note` を取得するが、#3 の stub が挿入したデフォルト値（`'good'` / `''`）が入る。動作は問題ない
+- `product_models` レコードは作成しない（#15 で出品処理を修正して `pending` で作成する）
 
 **備考**
-- 出品時: product INSERT → product_images の product_id 更新 → damage_detection_summaries から condition / condition_note を取得して products に反映
 - PATCH / DELETE は出品者本人のみ（403 FORBIDDEN）
+- #3 の完了が前提（product_images・damage_detection_summaries が存在する）
 
 ---
 
-### #6 画像アップロード・傷検出 API
-
-**エンドポイント**
-- `POST /api/images` (multipart/form-data)
-
-**実装内容**
-- GCS への画像アップロード
-- `internal/repository/product_image_repository.go` — Create（5枚分）
-- `internal/repository/damage_detection_summary_repository.go` — Create
-- Vertex AI Multimodal / Gemini を呼び出して非同期で傷検出
-- 検出結果を `damages` テーブルに INSERT、`damage_detection_summaries` を更新
-- WebSocket でフロントに完了通知（Issue #13 と連動）
-
-**備考**
-- ファイル形式: JPEG / PNG、10MB 以下
-- 非同期処理（ goroutine + チャネル or キュー）
-- Google ADC 必須（`gcloud auth application-default login`）
-
----
-
-### #7 傷情報 API
-
-**エンドポイント**
-- `GET /api/products/:id/damages`
-- `PATCH /api/damages/:id`
-
-**実装内容**
-- `internal/repository/damage_repository.go` — ListByProductID / UpdateCoordinates
-- `internal/service/damage_service.go`
-- `internal/handler/damage_handler.go`
-
-**備考**
-- PATCH は 3D フェーズ用（Raycaster で算出した model_x / y / z を保存）
-- 一覧は認証不要
-
----
-
-### #8 コメント API
+### #6 コメント API
 
 **エンドポイント**
 - `GET /api/products/:id/comments`
@@ -159,7 +174,7 @@
 
 ---
 
-### #9 いいね API
+### #7 いいね API
 
 **エンドポイント**
 - `POST /api/products/:id/likes`
@@ -176,7 +191,24 @@
 
 ---
 
-### #10 注文 API
+### #8 いいね一覧・閲覧履歴 API
+
+**エンドポイント**
+- `GET /api/me/likes`
+- `GET /api/me/viewing-history`
+
+**実装内容**
+- `internal/repository/user_repository.go` — GetLikesByUserID / GetViewingHistoryByUserID（ページネーション付き）
+- `internal/service/user_service.go` — GetMyLikes / GetMyViewingHistory
+- `internal/handler/user_handler.go` — 2ハンドラ追加
+
+**備考**
+- 共通ページネーション（limit / offset）対応
+- #4・#7 の完了が前提
+
+---
+
+### #9 注文 API
 
 **エンドポイント**
 - `POST /api/products/:id/orders`
@@ -198,7 +230,7 @@
 
 ---
 
-### #11 傷報告 API
+### #10 傷報告 API
 
 **エンドポイント**
 - `POST /api/orders/:id/damage-reports`
@@ -210,11 +242,12 @@
 
 **備考**
 - buyer_id 一致 かつ orders.status = `completed` のみ可
-- feedback_embeddings への Vertex AI Embedding 保存は将来フェーズ（スコープ外でも可）
+- feedback_embeddings への Vertex AI Embedding 保存は将来フェーズ（スコープ外）
+- #9 の完了が前提
 
 ---
 
-### #12 メッセージ API
+### #11 メッセージ API
 
 **エンドポイント**
 - `GET /api/message-rooms/:id/messages`
@@ -227,57 +260,141 @@
 
 **備考**
 - 参加者以外は 403 FORBIDDEN
-- POST 成功後に WebSocket で相手に通知（Issue #13 と連動）
+- POST 成功後に WebSocket で相手に通知（#12 と連動）
+- #9 の完了が前提（message_rooms が存在する）
 
 ---
 
-### #13 WebSocket リアルタイム通信
+### #12 WebSocket（メッセージのリアルタイム通知のみ）
 
 **エンドポイント**
 - `WS /ws?token=<Firebase ID Token>`
 
 **実装内容**
-- `internal/handler/ws_handler.go` — 接続管理・ルーム管理・ブロードキャスト
+- `internal/handler/ws_handler.go` — 接続管理・Hub パターン・ブロードキャスト
 - クライアント接続時に Firebase トークン検証
-- 送信イベント:
-  - `new_message` — メッセージ送信時（Issue #12 と連動）
-  - `damage_detection_complete` — 傷検出完了時（Issue #6 と連動）
-  - `model_generation_complete` — 3Dモデル生成完了時（3D フェーズ）
+- `new_message` イベントの送信（#11 と連動）
+
+**stub（AIフェーズ #16 で追加する）**
+- `damage_detection_complete` イベントは未実装（#16 で追加）
+- `model_generation_complete` イベントは未実装（#16 で追加）
 
 **備考**
 - gorilla/websocket など WebSocket ライブラリの導入が必要
-- Hub パターン（接続を中央管理）推奨
+- #11 の完了が前提
+
+---
+
+## AIフェーズ（#13〜#16）
+
+> **前提**: フリマ本体フェーズ（#1〜#12）の完了後に着手する。
+
+---
+
+### #13 傷検出AI連携
+
+**概要**
+#3 の stub（ダミー summary INSERT）を本実装に差し替える。
+
+**実装内容**
+- Gemini / Vertex AI Multimodal を呼び出して傷検出
+- 検出結果を `damages` テーブルに INSERT
+- `damage_detection_summaries` の `condition` / `condition_note` を実データで更新
+- 非同期処理（goroutine）で実行し、完了後に #16 の通知を呼ぶ
+
+**差し替え箇所**
+- `internal/repository/damage_detection_summary_repository.go` の Create — ダミー値を削除し、AI結果で更新
+- `internal/service/` に傷検出サービスを追加
+
+**備考**
+- Google ADC 必須（`gcloud auth application-default login`）
+
+---
+
+### #14 傷情報 API
+
+**エンドポイント**
+- `GET /api/products/:id/damages`
+- `PATCH /api/damages/:id`
+
+**実装内容**
+- `internal/repository/damage_repository.go` — ListByProductID / UpdateCoordinates
+- `internal/service/damage_service.go`
+- `internal/handler/damage_handler.go`
+
+**備考**
+- PATCH は 3D フェーズ用（Raycaster で算出した model_x / y / z を保存）
+- 一覧は認証不要
+- #13 の完了が前提（damages テーブルにデータが存在する）
+
+---
+
+### #15 3Dモデル生成AI連携
+
+**概要**
+Meshy などの外部サービスで3Dモデルを非同期生成する。
+
+**実装内容**
+- `internal/repository/product_model_repository.go` — Create / UpdateStatus / UpdateGlbURL
+- 外部サービス（Meshy 等）への生成リクエスト送信
+- ポーリング or Webhook でステータス更新（`pending → processing → done / failed`）
+- 完了後に #16 の通知を呼ぶ
+
+**差し替え箇所**
+- `internal/service/product_service.go` の CreateProduct — 出品時に `product_models` を `pending` で作成する処理を追加（#5 の修正）
+
+**備考**
+- `product_models.job_id` に外部サービスのジョブIDを保存する
+- `GET /api/products/:id` の `model` フィールドは追加実装なしで自動的に実データを返すようになる（#4 が product_models を JOIN 済みのため）
+
+---
+
+### #16 WebSocket AI通知
+
+**概要**
+#12 の stub に AI完了イベントを追加する。
+
+**実装内容**
+- `damage_detection_complete` イベント送信（#13 完了時に呼ぶ）
+- `model_generation_complete` イベント送信（#15 完了時に呼ぶ）
+- `internal/handler/ws_handler.go` にイベント種別を追加
+
+**備考**
+- #12 の Hub 実装が前提
+- #13・#15 の完了が前提
 
 ---
 
 ## 依存関係
 
 ```
-#1 (User CRUD)
-  └─ #2 (いいね・閲覧履歴)
-  └─ #10 (Order)
-       └─ #11 (傷報告)
-       └─ #12 (Message)
-            └─ #13 (WebSocket)
+フリマ本体フェーズ
+─────────────────
+#1 User CRUD
+  └─ #8 いいね一覧・閲覧履歴
 
-#6 (画像アップロード)
-  └─ #5 (商品出品) — damage_detection_summaries を参照
-  └─ #13 (WebSocket) — 検出完了通知
+#2 Category（独立）
 
-#4 (商品一覧・詳細)
-  └─ #7 (傷情報)
-  └─ #8 (コメント)
-  └─ #9 (いいね)
+#3 画像アップロード（stub）
+  └─ #5 商品出品
+       └─ #9 注文
+            └─ #10 傷報告
+            └─ #11 メッセージ
+                 └─ #12 WebSocket（new_messageのみ）
 
-#3 (Category) — 独立
+#4 商品一覧・詳細
+  └─ #5
+  └─ #6 コメント
+  └─ #7 いいね
+  └─ #8
+
+AIフェーズ
+──────────
+#13 傷検出AI（#3 stub差し替え）
+  └─ #14 傷情報API
+
+#15 3Dモデル生成AI（#5 修正）
+
+#13 + #15
+  └─ #16 WebSocket AI通知（#12 stub追加）
 ```
-
-## 推奨実装順序
-
-1. **#1** User CRUD（最も他に依存されるため最初）
-2. **#3** Category（独立・シンプル）
-3. **#6** 画像アップロード・傷検出（出品の前提）
-4. **#4 → #5** 商品一覧/詳細 → 商品出品/編集/削除
-5. **#7 #8 #9 #2** 傷・コメント・いいね・閲覧履歴（並行可）
-6. **#10 → #11** 注文 → 傷報告
-7. **#12 → #13** メッセージ → WebSocket

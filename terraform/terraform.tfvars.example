@@ -1,0 +1,6 @@
+# terraform.tfvars.example
+# このファイルをコピーして terraform.tfvars を作成してください
+# terraform.tfvars は .gitignore に含まれています
+
+# フロントエンドのVercel URL（本番CORSで許可するオリジン）
+frontend_origin = "https://flea-market-web.vercel.app"

@@ -107,3 +107,22 @@ make migrate-local
 
 GCP 認証は Workload Identity Federation を使用（サービスアカウントキー不要）。
 
+### Terraform（インフラ初期構築）
+
+```bash
+cd terraform
+
+# 設定ファイルを作成
+cp terraform.tfvars.example terraform.tfvars
+# terraform.tfvars を編集して frontend_origin を設定
+
+terraform init
+terraform apply
+```
+
+| 変数名 | 説明 |
+|---|---|
+| `frontend_origin` | フロントエンドの Vercel URL（本番 CORS 許可オリジン） |
+
+`terraform.tfvars` は `.gitignore` に含まれているためコミットされません。
+

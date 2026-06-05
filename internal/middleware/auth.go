@@ -28,15 +28,15 @@ func (m *AuthMiddleware) AuthRequired(next echo.HandlerFunc) echo.HandlerFunc {
 		if err != nil {
 			return apperror.ErrUnauthorized.New("invalid authorization header")
 		}
-		var deletionRequestedAt *time.Time
+		var deletionAt *time.Time
 		err = m.DB.QueryRowContext(c.Request().Context(),
 			`SELECT deleted_at FROM users WHERE id = $1`,
 			token.UID,
-		).Scan(&deletionRequestedAt)
+		).Scan(&deletionAt)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return apperror.ErrInternal.Wrap(err, "failed to check deletion status")
 		}
-		if deletionRequestedAt != nil {
+		if deletionAt != nil {
 			return apperror.ErrUnauthorized.New("account has been deleted")
 		}
 		c.Set("firebase_uid", token.UID)

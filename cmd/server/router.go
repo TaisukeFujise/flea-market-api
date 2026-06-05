@@ -9,6 +9,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/handler"
+	gcsclient "github.com/TaisukeFujise/flea-market-api/internal/infra/gcs"
 	mw "github.com/TaisukeFujise/flea-market-api/internal/middleware"
 	"github.com/TaisukeFujise/flea-market-api/internal/repository"
 	"github.com/TaisukeFujise/flea-market-api/internal/service"
@@ -17,7 +18,7 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 )
 
-func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
+func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	e := echo.New()
 	e.Validator = &CustomValidator{validator: validator.New()}
 	e.HTTPErrorHandler = handler.ErrorHandler
@@ -36,6 +37,11 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryService := service.NewCategoryService(categoryRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+
+	imageRepo := repository.NewProductImageRepository(db)
+	summaryRepo := repository.NewDamageDetectionSummaryRepository(db)
+	imageService := service.NewImageService(gcs, imageRepo, summaryRepo)
+	imageHandler := handler.NewImageHandler(imageService)
 
 	api := e.Group("/api")
 	public := api.Group("")
@@ -61,7 +67,7 @@ func NewRouter(db *sql.DB, fb *auth.Client) *echo.Echo {
 	authed.DELETE("/products/:id", notImplemented)
 
 	// images
-	authed.POST("/images", notImplemented)
+	authed.POST("/images", imageHandler.Upload)
 
 	// damages
 	public.GET("/products/:id/damages", notImplemented)

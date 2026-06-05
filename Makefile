@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: up rebuild down down-v dev migrate migrate-down migrate-local migrate-local-down
+.PHONY: up rebuild down down-v dev migrate migrate-down migrate-local migrate-local-down seed-local
 
 up:
 	docker compose up
@@ -30,3 +30,6 @@ migrate-local:
 
 migrate-local-down:
 	migrate -path ./migrations -database "$(subst @db:,@localhost:,$(DATABASE_URL))" down
+
+seed-local:
+	for f in db/seeds/*.sql; do psql "$(subst @db:,@localhost:,$(DATABASE_URL))" -f $$f; done

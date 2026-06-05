@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/fbapp"
+	"github.com/TaisukeFujise/flea-market-api/internal/infra/gcs"
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/postgres"
 	"github.com/labstack/echo/v5"
 )
@@ -25,8 +26,14 @@ func main() {
 		slog.Error("failed to initialize firebase auth client", "error", err)
 		os.Exit(1)
 	}
+	gcsClient, err := gcs.NewClient(context.Background())
+	if err != nil {
+		slog.Error("failed to initialize GCS client", "error", err)
+		os.Exit(1)
+	}
+	defer gcsClient.Close()
 
-	e := NewRouter(db, authClient)
+	e := NewRouter(db, authClient, gcsClient)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

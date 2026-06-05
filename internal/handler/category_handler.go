@@ -21,10 +21,10 @@ func NewCategoryHandler(s CategoryService) *CategoryHandler {
 }
 
 type categoryResponse struct {
-	ID       string             `json:"id"`
-	ParentID *string            `json:"parent_id"`
-	Name     string             `json:"name"`
-	Children []categoryResponse `json:"children"`
+	ID       string              `json:"id"`
+	ParentID *string             `json:"parent_id"`
+	Name     string              `json:"name"`
+	Children []*categoryResponse `json:"children"`
 }
 
 func (h *CategoryHandler) GetAll(c *echo.Context) error {
@@ -34,19 +34,21 @@ func (h *CategoryHandler) GetAll(c *echo.Context) error {
 	}
 
 	categoryByID := make(map[string]*categoryResponse, len(categories))
-	var roots []*categoryResponse
-	for _, cat := range categories {
+	roots := make([]*categoryResponse, 0)
+	for _, category := range categories {
 		node := &categoryResponse{
-			ID:       cat.ID,
-			ParentID: cat.ParentID,
-			Name:     cat.Name,
-			Children: []categoryResponse{},
+			ID:       category.ID,
+			ParentID: category.ParentID,
+			Name:     category.Name,
+			Children: []*categoryResponse{},
 		}
-		categoryByID[cat.ID] = node
-		if cat.ParentID == nil {
+		categoryByID[category.ID] = node
+	}
+	for _, node := range categoryByID {
+		if node.ParentID == nil {
 			roots = append(roots, node)
-		} else if parent, ok := categoryByID[*cat.ParentID]; ok {
-			parent.Children = append(parent.Children, *node)
+		} else if parent, ok := categoryByID[*node.ParentID]; ok {
+			parent.Children = append(parent.Children, node)
 		}
 	}
 	return c.JSON(http.StatusOK, map[string]any{"categories": roots})

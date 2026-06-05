@@ -46,14 +46,14 @@ func (r *UserRepository) Update(ctx context.Context, id string, userUpdate domai
 			display_name = COALESCE($2, display_name),
 			avatar_url = COALESCE($3, avatar_url),
 			updated_at = NOW()
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 	result, err := r.db.ExecContext(ctx, sqlStr, id, userUpdate.DisplayName, userUpdate.AvatarURL)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to exec update user")
 	}
-	if n, _ := result.RowsAffected(); n != 1 {
-		return apperror.ErrInternal.New("update user: unexpected rows affected")
+	if n, _ := result.RowsAffected(); n == 0 {
+		return apperror.ErrNotFound.New("user not found")
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 	const sqlStr = `
 		SELECT id, display_name, avatar_url, created_at, updated_at
 		FROM users
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`
 	var user domain.User
 	err := r.db.QueryRowContext(ctx, sqlStr, id).Scan(

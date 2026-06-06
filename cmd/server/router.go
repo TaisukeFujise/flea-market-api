@@ -65,7 +65,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 
 	// products
 	public.GET("/products", productHandler.GetList)
-	public.GET("/products/:id", productHandler.GetByID, authMW.TokenOnly)
+	public.GET("/products/:id", productHandler.GetByID, authMW.TokenOptional)
 	authed.POST("/products", notImplemented)
 	authed.PATCH("/products/:id", notImplemented)
 	authed.DELETE("/products/:id", notImplemented)

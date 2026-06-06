@@ -63,3 +63,18 @@ func (m *AuthMiddleware) TokenOnly(next echo.HandlerFunc) echo.HandlerFunc {
 		return next(c)
 	}
 }
+
+// TokenOptional はトークンがあれば検証して firebase_uid をセットし、なければそのまま通す。
+// 未認証でもアクセスでき、認証状態で挙動が変わるエンドポイントに使う。
+func (m *AuthMiddleware) TokenOptional(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		authorization := c.Request().Header.Get("Authorization")
+		idToken, ok := strings.CutPrefix(authorization, "Bearer ")
+		if ok && idToken != "" {
+			if token, err := m.Client.VerifyIDToken(c.Request().Context(), idToken); err == nil {
+				c.Set("firebase_uid", token.UID)
+			}
+		}
+		return next(c)
+	}
+}

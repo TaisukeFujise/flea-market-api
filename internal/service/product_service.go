@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
 )
@@ -34,7 +35,9 @@ func (s *ProductService) GetByID(ctx context.Context, id string, uid *string) (d
 		return domain.ProductDetail{}, err
 	}
 	if uid != nil {
-		_ = s.historyRepo.Upsert(ctx, *uid, id)
+		if err := s.historyRepo.Upsert(ctx, *uid, id); err != nil {
+			slog.Warn("failed to upsert viewing history", "error", err)
+		}
 	}
 	return product, nil
 }

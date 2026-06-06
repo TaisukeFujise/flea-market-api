@@ -174,7 +174,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			ORDER BY created_at DESC
 			LIMIT 1
 		) pm ON TRUE
-		WHERE p.id = $1::UUID AND p.deleted_at IS NULL
+		WHERE p.id = $1::UUID AND p.deleted_at IS NULL AND p.status = 'on_sale'
 	`, likedExpr)
 
 	var p domain.ProductDetail

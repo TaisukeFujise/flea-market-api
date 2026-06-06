@@ -25,6 +25,13 @@ func NewProductHandler(s ProductService) *ProductHandler {
 	return &ProductHandler{service: s}
 }
 
+func toModelResponse(status *string, glbURL *string) *productModelResponse {
+	if status == nil {
+		return nil
+	}
+	return &productModelResponse{Status: *status, GLBURL: glbURL}
+}
+
 type productSellerResponse struct {
 	ID          string  `json:"id"`
 	DisplayName string  `json:"display_name"`
@@ -111,11 +118,11 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 		return apperror.ErrValidation.New("min_price must be less than or equal to max_price")
 	}
 	if v := c.QueryParam("condition"); v != "" {
-		c := domain.ProductCondition(v)
-		if c != domain.ConditionGood && c != domain.ConditionFair && c != domain.ConditionPoor {
+		cond := domain.ProductCondition(v)
+		if cond != domain.ConditionGood && cond != domain.ConditionFair && cond != domain.ConditionPoor {
 			return apperror.ErrValidation.New("condition must be one of: good, fair, poor")
 		}
-		f.Condition = &c
+		f.Condition = &cond
 	}
 	if v := c.QueryParam("sort"); v != "" {
 		s := domain.ProductSort(v)
@@ -146,13 +153,6 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 
 	items := make([]productListItemResponse, len(products))
 	for i, p := range products {
-		var model *productModelResponse
-		if p.ModelStatus != nil {
-			model = &productModelResponse{
-				Status: *p.ModelStatus,
-				GLBURL: p.ModelGLBURL,
-			}
-		}
 		items[i] = productListItemResponse{
 			ID:           p.ID,
 			CategoryID:   p.CategoryID,
@@ -161,7 +161,7 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 			Condition:    p.Condition,
 			Status:       p.Status,
 			ThumbnailURL: p.ThumbnailURL,
-			Model:        model,
+			Model:        toModelResponse(p.ModelStatus, p.ModelGLBURL),
 			CreatedAt:    p.CreatedAt,
 		}
 	}
@@ -181,8 +181,7 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 	}
 
 	var uid *string
-	if v := c.Get("firebase_uid"); v != nil {
-		s := v.(string)
+	if s, ok := c.Get("firebase_uid").(string); ok && s != "" {
 		uid = &s
 	}
 
@@ -197,14 +196,6 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 			ID:    img.ID,
 			URL:   img.URL,
 			Angle: img.Angle,
-		}
-	}
-
-	var model *productModelResponse
-	if product.ModelStatus != nil {
-		model = &productModelResponse{
-			Status: *product.ModelStatus,
-			GLBURL: product.ModelGLBURL,
 		}
 	}
 
@@ -223,7 +214,7 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 		ConditionNote: product.ConditionNote,
 		Status:        product.Status,
 		Images:        images,
-		Model:         model,
+		Model:         toModelResponse(product.ModelStatus, product.ModelGLBURL),
 		Liked:         product.Liked,
 		CreatedAt:     product.CreatedAt,
 		UpdatedAt:     product.UpdatedAt,

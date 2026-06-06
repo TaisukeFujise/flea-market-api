@@ -10,6 +10,7 @@ import (
 )
 
 type Client struct {
+	raw        *storage.Client
 	bucket     *storage.BucketHandle
 	bucketName string
 }
@@ -19,8 +20,16 @@ func NewClient(ctx context.Context) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := os.Getenv("GCS_BUCKET")
-	return &Client{bucket: c.Bucket(name), bucketName: name}, nil
+	name := os.Getenv("GCS_BUCKET_NAME")
+	return &Client{raw: c, bucket: c.Bucket(name), bucketName: name}, nil
+}
+
+func (c *Client) Close() error {
+	return c.raw.Close()
+}
+
+func (c *Client) Delete(ctx context.Context, name string) error {
+	return c.bucket.Object(name).Delete(ctx)
 }
 
 func (c *Client) Upload(ctx context.Context, name string, r io.Reader, contentType string) (string, error) {

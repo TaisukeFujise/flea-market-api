@@ -12,6 +12,7 @@ import (
 
 type StorageClient interface {
 	Upload(ctx context.Context, name string, r io.Reader, contentType string) (string, error)
+	Delete(ctx context.Context, name string) error
 }
 
 type ProductImageRepository interface {
@@ -39,6 +40,7 @@ func NewImageService(s StorageClient, ir ProductImageRepository, sr DamageDetect
 }
 
 func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads []ImageUpload) ([]string, error) {
+	gcsNames := make([]string, 0, len(uploads))
 	urls := make([]string, len(uploads))
 	for i, u := range uploads {
 		ext := ".jpg"
@@ -48,8 +50,10 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		name := fmt.Sprintf("product-images/%s%s", uuid.New().String(), ext)
 		url, err := s.storage.Upload(ctx, name, u.Reader, u.ContentType)
 		if err != nil {
+			s.deleteGCSObjects(gcsNames)
 			return nil, apperror.ErrInternal.Wrap(err, "failed to upload image to GCS")
 		}
+		gcsNames = append(gcsNames, name)
 		urls[i] = url
 	}
 
@@ -60,6 +64,7 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		ConditionNote: "",
 	})
 	if err != nil {
+		s.deleteGCSObjects(gcsNames)
 		return nil, err
 	}
 
@@ -72,5 +77,16 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		}
 	}
 
-	return s.imageRepo.CreateAll(ctx, images)
+	ids, err := s.imageRepo.CreateAll(ctx, images)
+	if err != nil {
+		s.deleteGCSObjects(gcsNames)
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *ImageService) deleteGCSObjects(names []string) {
+	for _, name := range names {
+		_ = s.storage.Delete(context.Background(), name)
+	}
 }

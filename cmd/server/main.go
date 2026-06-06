@@ -31,6 +31,7 @@ func main() {
 		slog.Error("failed to initialize GCS client", "error", err)
 		os.Exit(1)
 	}
+	defer gcsClient.Close()
 
 	e := NewRouter(db, authClient, gcsClient)
 

@@ -19,6 +19,9 @@ func NewProductImageRepository(db *sql.DB) *ProductImageRepository {
 }
 
 func (r *ProductImageRepository) CreateAll(ctx context.Context, images []domain.ProductImage) ([]string, error) {
+	if len(images) == 0 {
+		return []string{}, nil
+	}
 	placeholders := make([]string, len(images))
 	args := make([]any, 0, len(images)*3)
 	for i, img := range images {

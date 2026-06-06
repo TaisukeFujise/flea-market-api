@@ -107,6 +107,9 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 		}
 		f.MaxPrice = &n
 	}
+	if f.MinPrice != nil && f.MaxPrice != nil && *f.MinPrice > *f.MaxPrice {
+		return apperror.ErrValidation.New("min_price must be less than or equal to max_price")
+	}
 	if v := c.QueryParam("condition"); v != "" {
 		c := domain.ProductCondition(v)
 		if c != domain.ConditionGood && c != domain.ConditionFair && c != domain.ConditionPoor {

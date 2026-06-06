@@ -43,7 +43,8 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	imageHandler := handler.NewImageHandler(imageService)
 
 	productRepo := repository.NewProductRepository(db)
-	productService := service.NewProductService(productRepo)
+	viewingHistoryRepo := repository.NewViewingHistoryRepository(db)
+	productService := service.NewProductService(productRepo, viewingHistoryRepo)
 	productHandler := handler.NewProductHandler(productService)
 
 	api := e.Group("/api")
@@ -64,7 +65,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 
 	// products
 	public.GET("/products", productHandler.GetList)
-	public.GET("/products/:id", notImplemented)
+	public.GET("/products/:id", productHandler.GetByID, authMW.TokenOnly)
 	authed.POST("/products", notImplemented)
 	authed.PATCH("/products/:id", notImplemented)
 	authed.DELETE("/products/:id", notImplemented)

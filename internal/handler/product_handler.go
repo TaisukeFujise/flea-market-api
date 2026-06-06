@@ -14,6 +14,7 @@ import (
 
 type ProductService interface {
 	ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
+	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
 }
 
 type ProductHandler struct {
@@ -24,9 +25,38 @@ func NewProductHandler(s ProductService) *ProductHandler {
 	return &ProductHandler{service: s}
 }
 
+type productSellerResponse struct {
+	ID          string  `json:"id"`
+	DisplayName string  `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url"`
+}
+
 type productModelResponse struct {
 	Status string  `json:"status"`
 	GLBURL *string `json:"glb_url"`
+}
+
+type productImageResponse struct {
+	ID    string `json:"id"`
+	URL   string `json:"url"`
+	Angle string `json:"angle"`
+}
+
+type productDetailResponse struct {
+	ID            string                 `json:"id"`
+	Seller        productSellerResponse  `json:"seller"`
+	CategoryID    string                 `json:"category_id"`
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description"`
+	Price         int                    `json:"price"`
+	Condition     string                 `json:"condition"`
+	ConditionNote *string                `json:"condition_note"`
+	Status        string                 `json:"status"`
+	Images        []productImageResponse `json:"images"`
+	Model         *productModelResponse  `json:"model"`
+	Liked         *bool                  `json:"liked"`
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
 }
 
 type productListResponse struct {
@@ -138,5 +168,61 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 		Total:  total,
 		Limit:  f.Limit,
 		Offset: f.Offset,
+	})
+}
+
+func (h *ProductHandler) GetByID(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	var uid *string
+	if v := c.Get("firebase_uid"); v != nil {
+		s := v.(string)
+		uid = &s
+	}
+
+	product, err := h.service.GetByID(c.Request().Context(), id, uid)
+	if err != nil {
+		return err
+	}
+
+	images := make([]productImageResponse, len(product.Images))
+	for i, img := range product.Images {
+		images[i] = productImageResponse{
+			ID:    img.ID,
+			URL:   img.URL,
+			Angle: img.Angle,
+		}
+	}
+
+	var model *productModelResponse
+	if product.ModelStatus != nil {
+		model = &productModelResponse{
+			Status: *product.ModelStatus,
+			GLBURL: product.ModelGLBURL,
+		}
+	}
+
+	return c.JSON(http.StatusOK, productDetailResponse{
+		ID: product.ID,
+		Seller: productSellerResponse{
+			ID:          product.SellerID,
+			DisplayName: product.SellerName,
+			AvatarURL:   product.SellerAvatarURL,
+		},
+		CategoryID:    product.CategoryID,
+		Title:         product.Title,
+		Description:   product.Description,
+		Price:         product.Price,
+		Condition:     product.Condition,
+		ConditionNote: product.ConditionNote,
+		Status:        product.Status,
+		Images:        images,
+		Model:         model,
+		Liked:         product.Liked,
+		CreatedAt:     product.CreatedAt,
+		UpdatedAt:     product.UpdatedAt,
 	})
 }

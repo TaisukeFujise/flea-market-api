@@ -31,6 +31,26 @@ type Product struct {
 	CreatedAt    time.Time
 }
 
+type ProductDetail struct {
+	ID              string
+	SellerID        string
+	SellerName      string
+	SellerAvatarURL *string
+	CategoryID      string
+	Title           string
+	Description     string
+	Price           int
+	Condition       string
+	ConditionNote   *string
+	Status          string
+	Images          []ProductImage
+	ModelStatus     *string
+	ModelGLBURL     *string
+	Liked           *bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type ProductFilter struct {
 	Query      *string
 	CategoryID *string

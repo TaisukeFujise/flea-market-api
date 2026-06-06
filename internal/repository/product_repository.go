@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -135,4 +136,123 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to iterate products")
 	}
 	return products, total, nil
+}
+
+func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error) {
+	args := []any{id}
+
+	likedExpr := "NULL::boolean"
+	if uid != nil {
+		args = append(args, *uid)
+		likedExpr = fmt.Sprintf("EXISTS(SELECT 1 FROM likes WHERE product_id = p.id AND user_id = $%d)", len(args))
+	}
+
+	sqlStr := fmt.Sprintf(`
+		SELECT
+			p.id,
+			p.category_id,
+			p.title,
+			COALESCE(p.description, ''),
+			p.price,
+			p.condition::TEXT,
+			p.condition_note,
+			p.status::TEXT,
+			u.id,
+			u.display_name,
+			u.avatar_url,
+			pm.status,
+			pm.glb_url,
+			p.created_at,
+			p.updated_at,
+			%s
+		FROM products p
+		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+		LEFT JOIN LATERAL (
+			SELECT status, glb_url
+			FROM product_models
+			WHERE product_id = p.id AND deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT 1
+		) pm ON TRUE
+		WHERE p.id = $1::UUID AND p.deleted_at IS NULL
+	`, likedExpr)
+
+	var p domain.ProductDetail
+	var conditionNote, avatarURL, modelStatus, modelGLBURL sql.NullString
+	var liked sql.NullBool
+	err := r.db.QueryRowContext(ctx, sqlStr, args...).Scan(
+		&p.ID,
+		&p.CategoryID,
+		&p.Title,
+		&p.Description,
+		&p.Price,
+		&p.Condition,
+		&conditionNote,
+		&p.Status,
+		&p.SellerID,
+		&p.SellerName,
+		&avatarURL,
+		&modelStatus,
+		&modelGLBURL,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+		&liked,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ProductDetail{}, apperror.ErrNotFound.New("product not found")
+		}
+		return domain.ProductDetail{}, apperror.ErrInternal.Wrap(err, "failed to get product")
+	}
+
+	if conditionNote.Valid {
+		p.ConditionNote = &conditionNote.String
+	}
+	if avatarURL.Valid {
+		p.SellerAvatarURL = &avatarURL.String
+	}
+	if modelStatus.Valid {
+		p.ModelStatus = &modelStatus.String
+	}
+	if modelGLBURL.Valid {
+		p.ModelGLBURL = &modelGLBURL.String
+	}
+	if uid != nil {
+		p.Liked = &liked.Bool
+	}
+
+	images, err := r.getImagesByProductID(ctx, id)
+	if err != nil {
+		return domain.ProductDetail{}, err
+	}
+	p.Images = images
+
+	return p, nil
+}
+
+func (r *ProductRepository) getImagesByProductID(ctx context.Context, productID string) ([]domain.ProductImage, error) {
+	sqlStr := `
+		SELECT id, url, angle::TEXT
+		FROM product_images
+		WHERE product_id = $1::UUID AND deleted_at IS NULL
+		ORDER BY created_at
+	`
+	rows, err := r.db.QueryContext(ctx, sqlStr, productID)
+	if err != nil {
+		return nil, apperror.ErrInternal.Wrap(err, "failed to query product images")
+	}
+	defer rows.Close()
+
+	images := make([]domain.ProductImage, 0)
+	for rows.Next() {
+		var img domain.ProductImage
+		if err := rows.Scan(&img.ID, &img.URL, &img.Angle); err != nil {
+			return nil, apperror.ErrInternal.Wrap(err, "failed to scan product image")
+		}
+		images = append(images, img)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperror.ErrInternal.Wrap(err, "failed to iterate product images")
+	}
+	return images, nil
 }

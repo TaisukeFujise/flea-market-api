@@ -20,6 +20,10 @@ func NewCategoryHandler(s CategoryService) *CategoryHandler {
 	return &CategoryHandler{service: s}
 }
 
+type categoryListResponse struct {
+	Categories []*categoryResponse `json:"categories"`
+}
+
 type categoryResponse struct {
 	ID       string              `json:"id"`
 	ParentID *string             `json:"parent_id"`
@@ -51,5 +55,5 @@ func (h *CategoryHandler) GetAll(c *echo.Context) error {
 			parent.Children = append(parent.Children, node)
 		}
 	}
-	return c.JSON(http.StatusOK, map[string]any{"categories": roots})
+	return c.JSON(http.StatusOK, categoryListResponse{Categories: roots})
 }

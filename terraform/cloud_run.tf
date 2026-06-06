@@ -68,7 +68,7 @@ resource "google_cloud_run_v2_service" "main" {
       }
 
       env {
-        name  = "FRONTEND_ORIGINS"
+        name  = "FRONTEND_ORIGIN"
         value = var.frontend_origin
       }
 

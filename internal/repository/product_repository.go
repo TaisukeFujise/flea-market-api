@@ -125,7 +125,8 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 			p.ThumbnailURL = &thumbnailURL.String
 		}
 		if modelStatus.Valid {
-			p.ModelStatus = &modelStatus.String
+			ms := domain.ModelStatus(modelStatus.String)
+			p.ModelStatus = &ms
 		}
 		if modelGLBURL.Valid {
 			p.ModelGLBURL = &modelGLBURL.String
@@ -212,7 +213,8 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 		p.SellerAvatarURL = &avatarURL.String
 	}
 	if modelStatus.Valid {
-		p.ModelStatus = &modelStatus.String
+		ms := domain.ModelStatus(modelStatus.String)
+		p.ModelStatus = &ms
 	}
 	if modelGLBURL.Valid {
 		p.ModelGLBURL = &modelGLBURL.String

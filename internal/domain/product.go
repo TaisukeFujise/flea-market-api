@@ -17,6 +17,15 @@ const (
 	StatusSoldOut ProductStatus = "sold_out"
 )
 
+type ModelStatus string
+
+const (
+	ModelStatusPending    ModelStatus = "pending"
+	ModelStatusProcessing ModelStatus = "processing"
+	ModelStatusDone       ModelStatus = "done"
+	ModelStatusFailed     ModelStatus = "failed"
+)
+
 type ProductSort string
 
 const (
@@ -30,10 +39,10 @@ type Product struct {
 	CategoryID   string
 	Title        string
 	Price        int
-	Condition    string
-	Status       string
+	Condition    ProductCondition
+	Status       ProductStatus
 	ThumbnailURL *string
-	ModelStatus  *string
+	ModelStatus  *ModelStatus
 	ModelGLBURL  *string
 	CreatedAt    time.Time
 }
@@ -47,11 +56,11 @@ type ProductDetail struct {
 	Title           string
 	Description     string
 	Price           int
-	Condition       string
+	Condition       ProductCondition
 	ConditionNote   *string
-	Status          string
+	Status          ProductStatus
 	Images          []ProductImage
-	ModelStatus     *string
+	ModelStatus     *ModelStatus
 	ModelGLBURL     *string
 	Liked           *bool
 	CreatedAt       time.Time

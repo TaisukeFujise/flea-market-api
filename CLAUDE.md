@@ -62,6 +62,7 @@ internal/
 - `domain.XxxUpdate` uses all-pointer fields for PATCH operations; SQL uses `COALESCE($n, column)` to keep existing values when nil.
 - Handler responses must use named structs — never `map[string]any`. Every JSON response shape is defined as a `xxxResponse` struct in the handler file.
 - Domain ENUM values (condition, sort, status, etc.) are defined as typed string constants in `domain/` (e.g. `type ProductCondition string` + `const ConditionGood ProductCondition = "good"`). Use these constants in handlers and repositories instead of raw string literals.
+- Domain struct fields that correspond to DB ENUMs must use the typed constant (e.g. `ProductCondition`, `ProductStatus`, `ModelStatus`, `ImageAngle`, `DamageType`, `OrderStatus`) — never `string`. When assigning to handler response structs (which use `string` for JSON), convert explicitly with `string(value)`.
 
 ## Error handling
 

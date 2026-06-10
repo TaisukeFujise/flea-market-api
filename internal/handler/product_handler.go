@@ -33,9 +33,11 @@ func toModelResponse(status *domain.ModelStatus, glbURL *string) *productModelRe
 }
 
 type productSellerResponse struct {
-	ID          string  `json:"id"`
-	DisplayName string  `json:"display_name"`
-	AvatarURL   *string `json:"avatar_url"`
+	ID          string   `json:"id"`
+	DisplayName string   `json:"display_name"`
+	AvatarURL   *string  `json:"avatar_url"`
+	RatingAvg   *float64 `json:"rating_avg"`
+	RatingCount int      `json:"rating_count"`
 }
 
 type productModelResponse struct {
@@ -205,6 +207,8 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 			ID:          product.SellerID,
 			DisplayName: product.SellerName,
 			AvatarURL:   product.SellerAvatarURL,
+			RatingAvg:   product.SellerRatingAvg,
+			RatingCount: product.SellerRatingCount,
 		},
 		CategoryID:    product.CategoryID,
 		Title:         product.Title,

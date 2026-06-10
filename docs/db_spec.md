@@ -35,4 +35,4 @@
 - 傷の bbox 座標は 1024×1024 正規化済み画像の絶対ピクセル値
 - `products.status` は `on_sale` / `sold_out` の2値（`draft` / `sold` / `deleted` は廃止）。購入確定時に `sold_out` に更新、キャンセル時に `on_sale` に戻す
 - `feedback_embeddings.embedding` は `vector(1408)`。`category_id` と組み合わせたカテゴリ内類似検索で Gemini への few-shot 参照に使用
-- `ratings` はフィードバック送信時に作成。`order_id` に UNIQUE 制約で二重評価防止。ユーザーの平均評価スコアは `GET /api/users/:id` および `GET /api/me` で返す
+- `ratings` はフィードバック送信時に作成。`order_id` に UNIQUE 制約で二重評価防止。ユーザーの平均評価スコアは `GET /api/me` および `GET /api/products/:id` の seller フィールドで返す

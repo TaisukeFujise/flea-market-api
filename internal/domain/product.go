@@ -48,10 +48,12 @@ type Product struct {
 }
 
 type ProductDetail struct {
-	ID              string
-	SellerID        string
-	SellerName      string
-	SellerAvatarURL *string
+	ID                string
+	SellerID          string
+	SellerName        string
+	SellerAvatarURL   *string
+	SellerRatingAvg   *float64
+	SellerRatingCount int
 	CategoryID      string
 	Title           string
 	Description     string

@@ -89,6 +89,8 @@ type GetUserResponse struct {
 	ID          string    `json:"id"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   *string   `json:"avatar_url"`
+	RatingAvg   *float64  `json:"rating_avg"`
+	RatingCount int       `json:"rating_count"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -107,6 +109,8 @@ func (u *UserHandler) Get(c *echo.Context) error {
 		ID:          user.ID,
 		DisplayName: user.DisplayName,
 		AvatarURL:   user.AvatarURL,
+		RatingAvg:   user.RatingAvg,
+		RatingCount: user.RatingCount,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	})

@@ -161,6 +161,8 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			u.id,
 			u.display_name,
 			u.avatar_url,
+			AVG(r.score),
+			COUNT(r.id),
 			pm.status,
 			pm.glb_url,
 			p.created_at,
@@ -168,6 +170,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			%s
 		FROM products p
 		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+		LEFT JOIN ratings r ON r.ratee_id = u.id
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
 			FROM product_models
@@ -176,10 +179,12 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			LIMIT 1
 		) pm ON TRUE
 		WHERE p.id = $1::UUID AND p.deleted_at IS NULL AND p.status = 'on_sale'
+		GROUP BY p.id, p.category_id, p.title, p.description, p.price, p.condition, p.condition_note, p.status, u.id, u.display_name, u.avatar_url, pm.status, pm.glb_url, p.created_at, p.updated_at
 	`, likedExpr)
 
 	var p domain.ProductDetail
 	var conditionNote, avatarURL, modelStatus, modelGLBURL sql.NullString
+	var sellerRatingAvg sql.NullFloat64
 	var liked sql.NullBool
 	err := r.db.QueryRowContext(ctx, sqlStr, args...).Scan(
 		&p.ID,
@@ -193,6 +198,8 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 		&p.SellerID,
 		&p.SellerName,
 		&avatarURL,
+		&sellerRatingAvg,
+		&p.SellerRatingCount,
 		&modelStatus,
 		&modelGLBURL,
 		&p.CreatedAt,
@@ -211,6 +218,9 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 	}
 	if avatarURL.Valid {
 		p.SellerAvatarURL = &avatarURL.String
+	}
+	if sellerRatingAvg.Valid {
+		p.SellerRatingAvg = &sellerRatingAvg.Float64
 	}
 	if modelStatus.Valid {
 		ms := domain.ModelStatus(modelStatus.String)

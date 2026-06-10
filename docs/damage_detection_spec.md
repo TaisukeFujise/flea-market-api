@@ -185,33 +185,6 @@ CREATE TYPE condition_type AS ENUM ('good', 'fair', 'poor');
 ```
 GORM の AutoMigrate では生成されないため、マイグレーションファイルに明示的に記述する。
 
-### Go（GORMモデル）
-```go
-type DamageType string
-const (
-    DamageTypeScratch DamageType = "scratch"
-    DamageTypeDirt    DamageType = "dirt"
-    DamageTypeWear    DamageType = "wear"
-)
-
-type ConditionType string
-const (
-    ConditionGood ConditionType = "good"
-    ConditionFair ConditionType = "fair"
-    ConditionPoor ConditionType = "poor"
-)
-
-type Damage struct {
-    gorm.Model
-    DamageType DamageType `gorm:"type:damage_type;not null"`
-}
-
-type Product struct {
-    gorm.Model
-    Condition ConditionType `gorm:"type:condition_type;not null"`
-}
-```
-
 ### Gemini response_schema
 `damage_type` と `condition` に Enum フィールドで制約（3-3. 参照）。
 

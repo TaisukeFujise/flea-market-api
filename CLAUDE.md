@@ -73,7 +73,7 @@ Request structs use `go-playground/validator/v10` tags. `CustomValidator` in `ro
 
 ## Database schema highlights
 
-Key ENUMs: `product_condition` (good/fair/poor), `product_status` (draft/on_sale/sold/deleted), `image_angle`, `damage_type`, `model_status`, `order_status`.
+Key ENUMs: `product_condition` (good/fair/poor), `product_status` (on_sale/sold_out), `image_angle`, `damage_type`, `model_status`, `order_status`.
 
 `feedback_embeddings.embedding` is `vector(1408)` — Vertex AI Multimodal Embedding dimension.
 

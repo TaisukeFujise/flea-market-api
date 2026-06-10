@@ -10,6 +10,13 @@ const (
 	ConditionPoor ProductCondition = "poor"
 )
 
+type ProductStatus string
+
+const (
+	StatusOnSale  ProductStatus = "on_sale"
+	StatusSoldOut ProductStatus = "sold_out"
+)
+
 type ProductSort string
 
 const (

@@ -11,6 +11,11 @@ import (
 	"github.com/lib/pq/pqerror"
 )
 
+const (
+	ratingsJoinSQL   = `LEFT JOIN ratings r ON r.ratee_id = u.id`
+	ratingsSelectSQL = `AVG(r.score), COUNT(r.id)`
+)
+
 type UserRepository struct {
 	db *sql.DB
 }
@@ -60,23 +65,37 @@ func (r *UserRepository) Update(ctx context.Context, id string, userUpdate domai
 
 func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error) {
 	const sqlStr = `
-		SELECT id, display_name, avatar_url, created_at, updated_at
-		FROM users
-		WHERE id = $1 AND deleted_at IS NULL
+		SELECT
+			u.id,
+			u.display_name,
+			u.avatar_url,
+			u.created_at,
+			u.updated_at,
+			` + ratingsSelectSQL + `
+		FROM users u
+		` + ratingsJoinSQL + `
+		WHERE u.id = $1 AND u.deleted_at IS NULL
+		GROUP BY u.id
 	`
 	var user domain.User
+	var ratingAvg sql.NullFloat64
 	err := r.db.QueryRowContext(ctx, sqlStr, id).Scan(
 		&user.ID,
 		&user.DisplayName,
 		&user.AvatarURL,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&ratingAvg,
+		&user.RatingCount,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, apperror.ErrNotFound.Wrap(err, "user not found")
 		}
 		return domain.User{}, apperror.ErrInternal.Wrap(err, "failed to get user")
+	}
+	if ratingAvg.Valid {
+		user.RatingAvg = &ratingAvg.Float64
 	}
 	return user, nil
 }

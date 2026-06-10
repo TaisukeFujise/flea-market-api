@@ -25,17 +25,19 @@ func NewProductHandler(s ProductService) *ProductHandler {
 	return &ProductHandler{service: s}
 }
 
-func toModelResponse(status *string, glbURL *string) *productModelResponse {
+func toModelResponse(status *domain.ModelStatus, glbURL *string) *productModelResponse {
 	if status == nil {
 		return nil
 	}
-	return &productModelResponse{Status: *status, GLBURL: glbURL}
+	return &productModelResponse{Status: string(*status), GLBURL: glbURL}
 }
 
 type productSellerResponse struct {
-	ID          string  `json:"id"`
-	DisplayName string  `json:"display_name"`
-	AvatarURL   *string `json:"avatar_url"`
+	ID          string   `json:"id"`
+	DisplayName string   `json:"display_name"`
+	AvatarURL   *string  `json:"avatar_url"`
+	RatingAvg   *float64 `json:"rating_avg"`
+	RatingCount int      `json:"rating_count"`
 }
 
 type productModelResponse struct {
@@ -158,8 +160,8 @@ func (h *ProductHandler) GetList(c *echo.Context) error {
 			CategoryID:   p.CategoryID,
 			Title:        p.Title,
 			Price:        p.Price,
-			Condition:    p.Condition,
-			Status:       p.Status,
+			Condition:    string(p.Condition),
+			Status:       string(p.Status),
 			ThumbnailURL: p.ThumbnailURL,
 			Model:        toModelResponse(p.ModelStatus, p.ModelGLBURL),
 			CreatedAt:    p.CreatedAt,
@@ -195,7 +197,7 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 		images[i] = productImageResponse{
 			ID:    img.ID,
 			URL:   img.URL,
-			Angle: img.Angle,
+			Angle: string(img.Angle),
 		}
 	}
 
@@ -205,14 +207,16 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 			ID:          product.SellerID,
 			DisplayName: product.SellerName,
 			AvatarURL:   product.SellerAvatarURL,
+			RatingAvg:   product.SellerRatingAvg,
+			RatingCount: product.SellerRatingCount,
 		},
 		CategoryID:    product.CategoryID,
 		Title:         product.Title,
 		Description:   product.Description,
 		Price:         product.Price,
-		Condition:     product.Condition,
+		Condition:     string(product.Condition),
 		ConditionNote: product.ConditionNote,
-		Status:        product.Status,
+		Status:        string(product.Status),
 		Images:        images,
 		Model:         toModelResponse(product.ModelStatus, product.ModelGLBURL),
 		Liked:         product.Liked,

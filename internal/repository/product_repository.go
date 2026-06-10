@@ -26,7 +26,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 		return fmt.Sprintf("$%d", len(args))
 	}
 
-	wheres := []string{"p.deleted_at IS NULL", "p.status = 'on_sale'"}
+	wheres := []string{"p.deleted_at IS NULL", fmt.Sprintf("p.status::TEXT = %s", nextArg(string(domain.StatusOnSale)))}
 
 	if f.Query != nil && *f.Query != "" {
 		p1 := nextArg("%" + *f.Query + "%")
@@ -78,7 +78,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 				ORDER BY pi_t.created_at
 				LIMIT 1
 			),
-			pm.status,
+			pm.status::TEXT,
 			pm.glb_url,
 			p.created_at,
 			COUNT(*) OVER() AS total
@@ -125,7 +125,8 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 			p.ThumbnailURL = &thumbnailURL.String
 		}
 		if modelStatus.Valid {
-			p.ModelStatus = &modelStatus.String
+			ms := domain.ModelStatus(modelStatus.String)
+			p.ModelStatus = &ms
 		}
 		if modelGLBURL.Valid {
 			p.ModelGLBURL = &modelGLBURL.String
@@ -160,13 +161,15 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			u.id,
 			u.display_name,
 			u.avatar_url,
-			pm.status,
+			` + ratingsSelectSQL + `,
+			pm.status::TEXT,
 			pm.glb_url,
 			p.created_at,
 			p.updated_at,
 			%s
 		FROM products p
 		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+		` + ratingsJoinSQL + `
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
 			FROM product_models
@@ -174,11 +177,13 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			ORDER BY created_at DESC
 			LIMIT 1
 		) pm ON TRUE
-		WHERE p.id = $1::UUID AND p.deleted_at IS NULL AND p.status = 'on_sale'
+		WHERE p.id = $1::UUID AND p.deleted_at IS NULL
+		GROUP BY p.id, p.category_id, p.title, p.description, p.price, p.condition, p.condition_note, p.status, u.id, u.display_name, u.avatar_url, pm.status, pm.glb_url, p.created_at, p.updated_at
 	`, likedExpr)
 
 	var p domain.ProductDetail
 	var conditionNote, avatarURL, modelStatus, modelGLBURL sql.NullString
+	var sellerRatingAvg sql.NullFloat64
 	var liked sql.NullBool
 	err := r.db.QueryRowContext(ctx, sqlStr, args...).Scan(
 		&p.ID,
@@ -192,6 +197,8 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 		&p.SellerID,
 		&p.SellerName,
 		&avatarURL,
+		&sellerRatingAvg,
+		&p.SellerRatingCount,
 		&modelStatus,
 		&modelGLBURL,
 		&p.CreatedAt,
@@ -211,8 +218,12 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 	if avatarURL.Valid {
 		p.SellerAvatarURL = &avatarURL.String
 	}
+	if sellerRatingAvg.Valid {
+		p.SellerRatingAvg = &sellerRatingAvg.Float64
+	}
 	if modelStatus.Valid {
-		p.ModelStatus = &modelStatus.String
+		ms := domain.ModelStatus(modelStatus.String)
+		p.ModelStatus = &ms
 	}
 	if modelGLBURL.Valid {
 		p.ModelGLBURL = &modelGLBURL.String

@@ -26,7 +26,7 @@ type DamageDetectionSummaryRepository interface {
 type ImageUpload struct {
 	Reader      io.Reader
 	ContentType string
-	Angle       string
+	Angle       domain.ImageAngle
 }
 
 type ImageService struct {
@@ -60,7 +60,7 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 	// stub: #13 でurlsをVertex AIに渡して傷検出を呼び出し、結果をCondition/ConditionNoteに反映する
 	summary, err := s.summaryRepo.Create(ctx, domain.DamageDetectionSummary{
 		UserID:        userID,
-		Condition:     "good",
+		Condition:     domain.ConditionGood,
 		ConditionNote: "",
 	})
 	if err != nil {

@@ -10,6 +10,22 @@ const (
 	ConditionPoor ProductCondition = "poor"
 )
 
+type ProductStatus string
+
+const (
+	StatusOnSale  ProductStatus = "on_sale"
+	StatusSoldOut ProductStatus = "sold_out"
+)
+
+type ModelStatus string
+
+const (
+	ModelStatusPending    ModelStatus = "pending"
+	ModelStatusProcessing ModelStatus = "processing"
+	ModelStatusDone       ModelStatus = "done"
+	ModelStatusFailed     ModelStatus = "failed"
+)
+
 type ProductSort string
 
 const (
@@ -23,28 +39,30 @@ type Product struct {
 	CategoryID   string
 	Title        string
 	Price        int
-	Condition    string
-	Status       string
+	Condition    ProductCondition
+	Status       ProductStatus
 	ThumbnailURL *string
-	ModelStatus  *string
+	ModelStatus  *ModelStatus
 	ModelGLBURL  *string
 	CreatedAt    time.Time
 }
 
 type ProductDetail struct {
-	ID              string
-	SellerID        string
-	SellerName      string
-	SellerAvatarURL *string
+	ID                string
+	SellerID          string
+	SellerName        string
+	SellerAvatarURL   *string
+	SellerRatingAvg   *float64
+	SellerRatingCount int
 	CategoryID      string
 	Title           string
 	Description     string
 	Price           int
-	Condition       string
+	Condition       ProductCondition
 	ConditionNote   *string
-	Status          string
+	Status          ProductStatus
 	Images          []ProductImage
-	ModelStatus     *string
+	ModelStatus     *ModelStatus
 	ModelGLBURL     *string
 	Liked           *bool
 	CreatedAt       time.Time

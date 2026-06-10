@@ -14,7 +14,8 @@
 | product_models | Meshy の job_id を保存し Webhook で status 更新。`product_id` に対して1レコード |
 | categories | 親子2階層。`parent_id` が NULL なら親カテゴリ |
 | damages | Gemini Vision の検出結果（1024×1024 正規化済み bbox）。`model_x/y/z` は 3D フェーズまで NULL |
-| damage_reports | 購入者が受け取り後に報告。`feedback_embeddings` の元データになる |
+| damage_reports | 購入者がフィードバック画面から報告。`feedback_embeddings` の元データになる。AIの精度向上目的のみで出品者には通知されない |
+| ratings | 購入者が取引完了後に出品者を5段階評価。`order_id` に対して1レコード（重複不可）。`ratee_id` が被評価者（出品者）、`rater_id` が評価者（購入者） |
 | orders | `price` は購入時点の `products.price` のスナップショット（後から出品者が値段変更しても影響しない） |
 | message_rooms | 購入後の取引連絡専用。購入前の質問は `comments` テーブルで管理 |
 | messages | 既読管理はスコープ外 |
@@ -32,4 +33,6 @@
 - 論理削除は `deleted_at TIMESTAMP` で管理（取引履歴を残すため）
 - 金額は INT 型（円単位）
 - 傷の bbox 座標は 1024×1024 正規化済み画像の絶対ピクセル値
+- `products.status` は `on_sale` / `sold_out` の2値（`draft` / `sold` / `deleted` は廃止）。購入確定時に `sold_out` に更新、キャンセル時に `on_sale` に戻す
 - `feedback_embeddings.embedding` は `vector(1408)`。`category_id` と組み合わせたカテゴリ内類似検索で Gemini への few-shot 参照に使用
+- `ratings` はフィードバック送信時に作成。`order_id` に UNIQUE 制約で二重評価防止。ユーザーの平均評価スコアは `GET /api/me` および `GET /api/products/:id` の seller フィールドで返す

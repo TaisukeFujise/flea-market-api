@@ -25,6 +25,14 @@ func NewUserHandler(s UserService) *UserHandler {
 	return &UserHandler{service: s}
 }
 
+func firebaseUID(c *echo.Context) (string, error) {
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return "", apperror.ErrUnauthorized.New("unauthorized")
+	}
+	return uid, nil
+}
+
 type RegisterUserRequest struct {
 	DisplayName string  `json:"display_name" validate:"required,max=255"`
 	AvatarURL   *string `json:"avatar_url"   validate:"omitempty,http_url"`
@@ -39,9 +47,9 @@ func (u *UserHandler) Register(c *echo.Context) error {
 		return err
 	}
 
-	uid, ok := c.Get("firebase_uid").(string)
-	if !ok || uid == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 
 	user := domain.User{
@@ -63,9 +71,9 @@ type UpdateUserRequest struct {
 
 func (u *UserHandler) Update(c *echo.Context) error {
 	var req UpdateUserRequest
-	id, ok := c.Get("firebase_uid").(string)
-	if !ok || id == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	id, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 	ctx := c.Request().Context()
 	if err := c.Bind(&req); err != nil {
@@ -89,14 +97,16 @@ type GetUserResponse struct {
 	ID          string    `json:"id"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   *string   `json:"avatar_url"`
+	RatingAvg   *float64  `json:"rating_avg"`
+	RatingCount int       `json:"rating_count"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (u *UserHandler) Get(c *echo.Context) error {
-	id, ok := c.Get("firebase_uid").(string)
-	if !ok || id == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	id, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 	ctx := c.Request().Context()
 	user, err := u.service.Get(ctx, id)
@@ -107,15 +117,17 @@ func (u *UserHandler) Get(c *echo.Context) error {
 		ID:          user.ID,
 		DisplayName: user.DisplayName,
 		AvatarURL:   user.AvatarURL,
+		RatingAvg:   user.RatingAvg,
+		RatingCount: user.RatingCount,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	})
 }
 
 func (u *UserHandler) Delete(c *echo.Context) error {
-	id, ok := c.Get("firebase_uid").(string)
-	if !ok || id == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	id, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 	ctx := c.Request().Context()
 	if err := u.service.Delete(ctx, id); err != nil {

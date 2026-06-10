@@ -122,7 +122,7 @@ CREATE TABLE ratings (
 	order_id UUID NOT NULL REFERENCES orders(id) UNIQUE,
 	rater_id VARCHAR(255) NOT NULL REFERENCES users(id),
 	ratee_id VARCHAR(255) NOT NULL REFERENCES users(id),
-	score INT NOT NULL,
+	score INT NOT NULL CHECK (score BETWEEN 1 AND 5),
 	created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

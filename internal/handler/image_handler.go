@@ -40,35 +40,35 @@ type uploadImagesResponse struct {
 }
 
 func (h *ImageHandler) Upload(c *echo.Context) error {
-	uid, ok := c.Get("firebase_uid").(string)
-	if !ok || uid == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 
 	uploads := make([]service.ImageUpload, 0, len(imageAngles))
 	for _, angle := range imageAngles {
-		a := string(angle)
-		fh, err := c.FormFile(a)
+		name := string(angle)
+		fh, err := c.FormFile(name)
 		if err != nil {
-			return apperror.ErrValidation.Wrap(err, a+" image is required")
+			return apperror.ErrValidation.Wrap(err, name+" image is required")
 		}
 		if fh.Size > maxImageSize {
-			return apperror.ErrValidation.New(a + " image exceeds 10MB limit")
+			return apperror.ErrValidation.New(name + " image exceeds 10MB limit")
 		}
 		f, err := fh.Open()
 		if err != nil {
-			return apperror.ErrInternal.Wrap(err, "failed to open "+a+" image")
+			return apperror.ErrInternal.Wrap(err, "failed to open "+name+" image")
 		}
 		defer f.Close()
 
 		buf := make([]byte, 512)
 		n, err := f.Read(buf)
 		if err != nil && err != io.EOF {
-			return apperror.ErrInternal.Wrap(err, "failed to read "+a+" image")
+			return apperror.ErrInternal.Wrap(err, "failed to read "+name+" image")
 		}
 		ct := http.DetectContentType(buf[:n])
 		if ct != "image/jpeg" && ct != "image/png" {
-			return apperror.ErrValidation.New(a + " image must be JPEG or PNG")
+			return apperror.ErrValidation.New(name + " image must be JPEG or PNG")
 		}
 		uploads = append(uploads, service.ImageUpload{
 			Reader:      io.MultiReader(bytes.NewReader(buf[:n]), f),

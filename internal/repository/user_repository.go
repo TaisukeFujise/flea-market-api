@@ -11,6 +11,11 @@ import (
 	"github.com/lib/pq/pqerror"
 )
 
+const (
+	ratingsJoinSQL   = `LEFT JOIN ratings r ON r.ratee_id = u.id`
+	ratingsSelectSQL = `AVG(r.score), COUNT(r.id)`
+)
+
 type UserRepository struct {
 	db *sql.DB
 }
@@ -66,10 +71,9 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 			u.avatar_url,
 			u.created_at,
 			u.updated_at,
-			AVG(r.score),
-			COUNT(r.id)
+			` + ratingsSelectSQL + `
 		FROM users u
-		LEFT JOIN ratings r ON r.ratee_id = u.id
+		` + ratingsJoinSQL + `
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 		GROUP BY u.id
 	`

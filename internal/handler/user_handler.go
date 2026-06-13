@@ -61,7 +61,7 @@ func (u *UserHandler) Register(c *echo.Context) error {
 	if err := u.service.Register(ctx, user); err != nil {
 		return err
 	}
-	return c.NoContent(http.StatusCreated)
+	return c.NoContent(http.StatusNoContent)
 }
 
 type UpdateUserRequest struct {

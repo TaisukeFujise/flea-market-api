@@ -8,6 +8,7 @@
 | GET | /api/me | 必要 | 自分のプロフィール取得 |
 | PATCH | /api/me | 必要 | 自分のプロフィール更新 |
 | DELETE | /api/me | 必要 | アカウント削除 |
+| POST | /api/me/avatar | 必要 | アバター画像アップロード |
 | GET | /api/me/likes | 必要 | いいね一覧 |
 | GET | /api/me/viewing-history | 必要 | 閲覧履歴 |
 | GET | /api/categories | 不要 | カテゴリ一覧 |
@@ -165,6 +166,26 @@ Authorization: Bearer <Firebase ID Token>
 DBの論理削除（deleted_at更新）のみ実施。Firebase Authのアカウントは残るが、以降のリクエストは認証ミドルウェアのdeleted_atチェックで弾く。
 
 **Response 204** No Content
+
+---
+
+### POST /api/me/avatar
+アバター画像をアップロードし、自分の `avatar_url` を更新する。
+
+**認証：必要**
+
+**Request** `multipart/form-data`
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| avatar | file | 画像ファイル（JPEG/PNG・10MB以下） |
+
+**Response 204** No Content
+
+**Errors**
+| Status | code | 条件 |
+|---|---|---|
+| 400 | VALIDATION_ERROR | ファイル形式不正・サイズ超過 |
 
 ---
 

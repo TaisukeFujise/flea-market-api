@@ -34,8 +34,17 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 		p2 := nextArg("%" + *f.Query + "%")
 		wheres = append(wheres, fmt.Sprintf("(p.title ILIKE %s OR p.description ILIKE %s)", p1, p2))
 	}
+	var cte string
 	if f.CategoryID != nil {
-		wheres = append(wheres, fmt.Sprintf("p.category_id = %s::UUID", nextArg(*f.CategoryID)))
+		cte = fmt.Sprintf(`
+			WITH RECURSIVE category_tree AS (
+				SELECT id FROM categories WHERE id = %s::UUID
+				UNION ALL
+				SELECT c.id FROM categories c
+				INNER JOIN category_tree ct ON c.parent_id = ct.id
+			)
+		`, nextArg(*f.CategoryID))
+		wheres = append(wheres, "p.category_id IN (SELECT id FROM category_tree)")
 	}
 	if f.MinPrice != nil {
 		wheres = append(wheres, fmt.Sprintf("p.price >= %s", nextArg(*f.MinPrice)))
@@ -64,7 +73,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 	limitArg := nextArg(f.Limit)
 	offsetArg := nextArg(f.Offset)
 
-	sqlStr := fmt.Sprintf(`
+	sqlStr := cte + fmt.Sprintf(`
 		SELECT
 			p.id,
 			p.category_id,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
+	"github.com/lib/pq"
 )
 
 type ProductRepository struct {
@@ -237,6 +238,65 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 		return domain.ProductDetail{}, err
 	}
 	p.Images = images
+
+	return p, nil
+}
+
+func (r *ProductRepository) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	var condition domain.ProductCondition
+	var conditionNote sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT dds.condition::TEXT, dds.condition_note
+		FROM product_images pi
+		JOIN damage_detection_summaries dds ON dds.id = pi.summary_id
+		WHERE pi.id = $1 AND pi.deleted_at IS NULL
+	`, input.ImageIDs[0]).Scan(&condition, &conditionNote)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Product{}, apperror.ErrNotFound.New("image not found")
+		}
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get damage detection summary")
+	}
+
+	var p domain.Product
+	var condNote *string
+	if conditionNote.Valid {
+		condNote = &conditionNote.String
+	}
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
+		RETURNING id, status::TEXT, created_at
+	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), condNote).
+		Scan(&p.ID, &p.Status, &p.CreatedAt)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE product_images SET product_id = $1
+		WHERE id = ANY($2) AND deleted_at IS NULL
+	`, p.ID, pq.Array(input.ImageIDs))
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to update product images")
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if int(updated) != len(input.ImageIDs) {
+		return domain.Product{}, apperror.ErrNotFound.New("one or more image_ids not found")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
 
 	return p, nil
 }

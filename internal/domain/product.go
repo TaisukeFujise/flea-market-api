@@ -69,6 +69,14 @@ type ProductDetail struct {
 	UpdatedAt       time.Time
 }
 
+type ProductCreate struct {
+	ImageIDs    []string
+	CategoryID  string
+	Title       string
+	Description string
+	Price       int
+}
+
 type ProductFilter struct {
 	Query      *string
 	CategoryID *string

@@ -15,6 +15,7 @@ import (
 type ProductService interface {
 	ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
+	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 }
 
 type ProductHandler struct {
@@ -222,5 +223,51 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 		Liked:         product.Liked,
 		CreatedAt:     product.CreatedAt,
 		UpdatedAt:     product.UpdatedAt,
+	})
+}
+
+type productCreateRequest struct {
+	ImageIDs    []string `json:"image_ids"    validate:"required,min=1,dive,uuid"`
+	CategoryID  string   `json:"category_id"  validate:"required,uuid"`
+	Title       string   `json:"title"        validate:"required"`
+	Description string   `json:"description"  validate:"required"`
+	Price       int      `json:"price"        validate:"required,min=1"`
+}
+
+type productCreateResponse struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (h *ProductHandler) Create(c *echo.Context) error {
+	var req productCreateRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	product, err := h.service.Create(c.Request().Context(), uid, domain.ProductCreate{
+		ImageIDs:    req.ImageIDs,
+		CategoryID:  req.CategoryID,
+		Title:       req.Title,
+		Description: req.Description,
+		Price:       req.Price,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusCreated, productCreateResponse{
+		ID:        product.ID,
+		Status:    string(product.Status),
+		CreatedAt: product.CreatedAt,
 	})
 }

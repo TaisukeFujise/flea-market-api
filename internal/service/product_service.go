@@ -10,6 +10,7 @@ import (
 type ProductRepository interface {
 	List(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
+	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 }
 
 type ViewingHistoryRepository interface {
@@ -27,6 +28,10 @@ func NewProductService(r ProductRepository, h ViewingHistoryRepository) *Product
 
 func (s *ProductService) ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error) {
 	return s.repo.List(ctx, f)
+}
+
+func (s *ProductService) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
+	return s.repo.Create(ctx, sellerID, input)
 }
 
 func (s *ProductService) GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error) {

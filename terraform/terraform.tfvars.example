@@ -3,4 +3,4 @@
 # terraform.tfvars は .gitignore に含まれています
 
 # フロントエンドのVercel URL（本番CORSで許可するオリジン）
-frontend_origin = "https://flea-market-web.vercel.app"
+frontend_origin = "https://loupe-market.vercel.app"

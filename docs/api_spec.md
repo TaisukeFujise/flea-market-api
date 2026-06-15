@@ -4,36 +4,36 @@
 
 | メソッド | パス | 認証 | 概要 |
 |---|---|---|---|
-| POST | /api/users/register | 必要 | ユーザー登録 |
-| GET | /api/me | 必要 | 自分のプロフィール取得 |
-| PATCH | /api/me | 必要 | 自分のプロフィール更新 |
-| DELETE | /api/me | 必要 | アカウント削除 |
-| POST | /api/me/avatar | 必要 | アバター画像アップロード |
-| GET | /api/me/likes | 必要 | いいね一覧 |
-| GET | /api/me/viewing-history | 必要 | 閲覧履歴 |
-| GET | /api/categories | 不要 | カテゴリ一覧 |
-| GET | /api/products | 不要 | 商品一覧 |
-| POST | /api/images | 必要 | 画像アップロード・傷検出開始 |
-| POST | /api/products | 必要 | 商品出品 |
-| GET | /api/products/:id | 不要 | 商品詳細 |
-| PATCH | /api/products/:id | 必要（出品者のみ） | 商品情報更新 |
-| DELETE | /api/products/:id | 必要（出品者のみ） | 商品削除 |
-| GET | /api/products/:id/damages | 不要 | 傷情報一覧 |
-| GET | /api/products/:id/comments | 不要 | コメント一覧 |
-| POST | /api/products/:id/comments | 必要 | コメント投稿 |
-| POST | /api/products/:id/likes | 必要 | いいね |
-| DELETE | /api/products/:id/likes | 必要 | いいね解除 |
-| POST | /api/products/:id/orders | 必要（自分の商品は不可） | 商品購入 |
-| PATCH | /api/damages/:id | 必要 | 傷3D座標更新（3Dフェーズ） |
-| DELETE | /api/comments/:id | 必要（投稿者のみ） | コメント削除 |
-| GET | /api/orders | 必要 | 注文一覧 |
-| GET | /api/orders/:id | 必要（関係者のみ） | 注文詳細 |
-| PATCH | /api/orders/:id | 必要（関係者のみ・操作内容による） | 注文ステータス更新 |
-| POST | /api/orders/:id/feedback | 必要（購入者のみ・completed状態） | フィードバック送信（評価） |
-| POST | /api/orders/:id/damage-reports | 必要（購入者のみ・completed状態） | 傷報告 |
-| GET | /api/message-rooms/:id/messages | 必要（参加者のみ） | メッセージ一覧 |
-| POST | /api/message-rooms/:id/messages | 必要（参加者のみ） | メッセージ送信 |
-| WS | /ws | 必要 | リアルタイム通信 |
+| POST | [`/api/users/register`](#post-apiusersregister) | 必要 | ユーザー登録 |
+| GET | [`/api/me`](#get-apime) | 必要 | 自分のプロフィール取得 |
+| PATCH | [`/api/me`](#patch-apime) | 必要 | 自分のプロフィール更新 |
+| DELETE | [`/api/me`](#delete-apime) | 必要 | アカウント削除 |
+| POST | [`/api/me/avatar`](#post-apimeavatar) | 必要 | アバター画像アップロード |
+| GET | [`/api/me/likes`](#get-apimelikes) | 必要 | いいね一覧 |
+| GET | [`/api/me/viewing-history`](#get-apimeviewing-history) | 必要 | 閲覧履歴 |
+| GET | [`/api/categories`](#get-apicategories) | 不要 | カテゴリ一覧 |
+| GET | [`/api/products`](#get-apiproducts) | 不要 | 商品一覧 |
+| POST | [`/api/images`](#post-apiimages) | 必要 | 画像アップロード・傷検出開始 |
+| POST | [`/api/products`](#post-apiproducts) | 必要 | 商品出品 |
+| GET | [`/api/products/:id`](#get-apiproductsid) | 不要 | 商品詳細 |
+| PATCH | [`/api/products/:id`](#patch-apiproductsid) | 必要（出品者のみ） | 商品情報更新 |
+| DELETE | [`/api/products/:id`](#delete-apiproductsid) | 必要（出品者のみ） | 商品削除 |
+| GET | [`/api/products/:id/damages`](#get-apiproductsiddamages) | 不要 | 傷情報一覧 |
+| GET | [`/api/products/:id/comments`](#get-apiproductsidcomments) | 不要 | コメント一覧 |
+| POST | [`/api/products/:id/comments`](#post-apiproductsidcomments) | 必要 | コメント投稿 |
+| POST | [`/api/products/:id/likes`](#post-apiproductsidlikes) | 必要 | いいね |
+| DELETE | [`/api/products/:id/likes`](#delete-apiproductsidlikes) | 必要 | いいね解除 |
+| POST | [`/api/products/:id/orders`](#post-apiproductsidorders) | 必要（自分の商品は不可） | 商品購入 |
+| PATCH | [`/api/damages/:id`](#patch-apidamagesid) | 必要 | 傷3D座標更新（3Dフェーズ） |
+| DELETE | [`/api/comments/:id`](#delete-apicommentsid) | 必要（投稿者のみ） | コメント削除 |
+| GET | [`/api/orders`](#get-apiorders) | 必要 | 注文一覧 |
+| GET | [`/api/orders/:id`](#get-apiordersid) | 必要（関係者のみ） | 注文詳細 |
+| PATCH | [`/api/orders/:id`](#patch-apiordersid) | 必要（関係者のみ・操作内容による） | 注文ステータス更新 |
+| POST | [`/api/orders/:id/feedback`](#post-apiordersidfeedback) | 必要（購入者のみ・completed状態） | フィードバック送信（評価） |
+| POST | [`/api/orders/:id/damage-reports`](#post-apiordersiddamage-reports) | 必要（購入者のみ・completed状態） | 傷報告 |
+| GET | [`/api/message-rooms/:id/messages`](#get-apimessage-roomsidmessages) | 必要（参加者のみ） | メッセージ一覧 |
+| POST | [`/api/message-rooms/:id/messages`](#post-apimessage-roomsidmessages) | 必要（参加者のみ） | メッセージ送信 |
+| WS | [`/ws`](#ws-ws) | 必要 | リアルタイム通信 |
 
 ---
 

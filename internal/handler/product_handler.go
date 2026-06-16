@@ -235,9 +235,7 @@ type productCreateRequest struct {
 }
 
 type productCreateResponse struct {
-	ID        string    `json:"id"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID string `json:"id"`
 }
 
 func (h *ProductHandler) Create(c *echo.Context) error {
@@ -266,8 +264,6 @@ func (h *ProductHandler) Create(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, productCreateResponse{
-		ID:        product.ID,
-		Status:    string(product.Status),
-		CreatedAt: product.CreatedAt,
+		ID: product.ID,
 	})
 }

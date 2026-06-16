@@ -314,9 +314,9 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
-		RETURNING id, status::TEXT, created_at
+		RETURNING id
 	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), conditionNote).
-		Scan(&p.ID, &p.Status, &p.CreatedAt)
+		Scan(&p.ID)
 	if err != nil {
 		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
 	}

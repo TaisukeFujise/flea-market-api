@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -72,13 +73,15 @@ func (s *UserService) UploadAvatar(ctx context.Context, id string, r io.Reader, 
 	}
 
 	if err := s.repo.UpdateAvatar(ctx, id, newURL); err != nil {
-		_ = s.storage.Delete(context.Background(), name)
+		_ = s.storage.Delete(ctx, name)
 		return err
 	}
 
 	if user.AvatarURL != nil {
 		if oldName, ok := gcsObjectName(*user.AvatarURL); ok {
-			_ = s.storage.Delete(context.Background(), oldName)
+			if err := s.storage.Delete(ctx, oldName); err != nil {
+				log.Printf("warn: failed to delete old avatar %s: %v", oldName, err)
+			}
 		}
 	}
 

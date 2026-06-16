@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -145,18 +144,15 @@ func (u *UserHandler) UploadAvatar(c *echo.Context) error {
 	}
 	defer f.Close()
 
-	buf := make([]byte, 512)
-	n, err := f.Read(buf)
-	if err != nil && err != io.EOF {
+	ct, r, err := sniffImage(f)
+	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to read avatar image")
 	}
-	ct := http.DetectContentType(buf[:n])
 	if ct != "image/jpeg" && ct != "image/png" {
 		return apperror.ErrValidation.New("avatar image must be JPEG or PNG")
 	}
 
 	ctx := c.Request().Context()
-	r := io.MultiReader(bytes.NewReader(buf[:n]), f)
 	if err := u.service.UploadAvatar(ctx, uid, r, ct); err != nil {
 		return err
 	}

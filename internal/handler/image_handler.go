@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net/http"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -23,8 +21,6 @@ type ImageHandler struct {
 func NewImageHandler(s ImageService) *ImageHandler {
 	return &ImageHandler{service: s}
 }
-
-const maxImageSize = 10 << 20 // 10MB
 
 var imageAngles = []domain.ImageAngle{
 	domain.AngleFront,
@@ -61,17 +57,15 @@ func (h *ImageHandler) Upload(c *echo.Context) error {
 		}
 		defer f.Close()
 
-		buf := make([]byte, 512)
-		n, err := f.Read(buf)
-		if err != nil && err != io.EOF {
+		ct, r, err := sniffImage(f)
+		if err != nil {
 			return apperror.ErrInternal.Wrap(err, "failed to read "+name+" image")
 		}
-		ct := http.DetectContentType(buf[:n])
 		if ct != "image/jpeg" && ct != "image/png" {
 			return apperror.ErrValidation.New(name + " image must be JPEG or PNG")
 		}
 		uploads = append(uploads, service.ImageUpload{
-			Reader:      io.MultiReader(bytes.NewReader(buf[:n]), f),
+			Reader:      r,
 			ContentType: ct,
 			Angle:       angle,
 		})

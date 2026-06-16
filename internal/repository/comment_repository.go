@@ -37,9 +37,9 @@ func (r *CommentRepository) ListByProductID(ctx context.Context, productID strin
 	rows, err := tx.QueryContext(ctx, `
 		SELECT c.id, u.id, u.display_name, u.avatar_url, c.content, c.created_at, COUNT(*) OVER()
 		FROM comments c
-		JOIN users u ON c.user_id = u.id
+		JOIN users u ON c.user_id = u.id AND u.deleted_at IS NULL
 		WHERE c.product_id = $1 AND c.deleted_at IS NULL
-		ORDER BY c.created_at ASC
+		ORDER BY c.created_at ASC, c.id ASC
 		LIMIT $2 OFFSET $3
 	`, productID, f.Limit, f.Offset)
 	if err != nil {
@@ -95,34 +95,30 @@ func (r *CommentRepository) Create(ctx context.Context, input domain.CommentCrea
 	return c, nil
 }
 
-func (r *CommentRepository) Delete(ctx context.Context, id string, uid string) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to begin transaction")
-	}
-	defer tx.Rollback()
-
+func (r *CommentRepository) GetOwnerID(ctx context.Context, id string) (string, error) {
 	var userID string
-	if err := tx.QueryRowContext(ctx, `
-		SELECT user_id FROM comments WHERE id = $1::UUID AND deleted_at IS NULL FOR UPDATE
-	`, id).Scan(&userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.ErrNotFound.New("comment not found")
-		}
-		return apperror.ErrInternal.Wrap(err, "failed to select comment")
+	err := r.db.QueryRowContext(ctx, `
+		SELECT user_id FROM comments WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", apperror.ErrNotFound.New("comment not found")
 	}
-	if userID != uid {
-		return apperror.ErrForbidden.New("forbidden")
+	if err != nil {
+		return "", apperror.ErrInternal.Wrap(err, "failed to get comment owner")
 	}
+	return userID, nil
+}
 
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE comments SET deleted_at = NOW() WHERE id = $1::UUID
-	`, id); err != nil {
+func (r *CommentRepository) Delete(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE comments SET deleted_at = NOW() WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id)
+	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to delete comment")
 	}
-
-	if err := tx.Commit(); err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return apperror.ErrNotFound.New("comment not found")
 	}
 	return nil
 }

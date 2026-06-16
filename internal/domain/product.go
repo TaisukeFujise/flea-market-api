@@ -93,3 +93,17 @@ type ProductFilter struct {
 	Limit      int
 	Offset     int
 }
+
+type Like struct {
+	ProductID    string
+	Title        string
+	Price        int
+	ThumbnailURL *string
+	Status       ProductStatus
+	CreatedAt    time.Time
+}
+
+type LikeFilter struct {
+	Limit  int
+	Offset int
+}

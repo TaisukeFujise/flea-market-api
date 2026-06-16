@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
+	"github.com/TaisukeFujise/flea-market-api/internal/domain"
 	"github.com/lib/pq"
 	"github.com/lib/pq/pqerror"
 )
@@ -36,6 +37,45 @@ func (r *LikeRepository) Create(ctx context.Context, productID, userID string) e
 		return apperror.ErrNotFound.New("product not found")
 	}
 	return nil
+}
+
+func (r *LikeRepository) ListByUserID(ctx context.Context, userID string, f domain.LikeFilter) ([]domain.Like, int, error) {
+	var total int
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM likes l
+		JOIN products p ON l.product_id = p.id AND p.deleted_at IS NULL
+		WHERE l.user_id = $1
+	`, userID).Scan(&total); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count likes")
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT p.id, p.title, p.price, p.thumbnail_url, p.status, l.created_at
+		FROM likes l
+		JOIN products p ON l.product_id = p.id AND p.deleted_at IS NULL
+		WHERE l.user_id = $1
+		ORDER BY l.created_at DESC
+		LIMIT $2 OFFSET $3
+	`, userID, f.Limit, f.Offset)
+	if err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to list likes")
+	}
+	defer rows.Close()
+
+	likes := make([]domain.Like, 0)
+	for rows.Next() {
+		var like domain.Like
+		if err := rows.Scan(&like.ProductID, &like.Title, &like.Price, &like.ThumbnailURL, &like.Status, &like.CreatedAt); err != nil {
+			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan like")
+		}
+		likes = append(likes, like)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to iterate likes")
+	}
+
+	return likes, total, nil
 }
 
 func (r *LikeRepository) Delete(ctx context.Context, productID, userID string) error {

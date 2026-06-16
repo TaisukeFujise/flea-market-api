@@ -39,10 +39,10 @@ func (r *OrderRepository) Create(ctx context.Context, buyerID, productID string,
 
 	var o domain.Order
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO orders (product_id, buyer_id, price, status)
-		VALUES ($1::UUID, $2, $3, $4::order_status)
+		INSERT INTO orders (product_id, buyer_id, seller_id, price, status)
+		VALUES ($1::UUID, $2, $3, $4, $5::order_status)
 		RETURNING id, product_id, buyer_id, price, status::TEXT, created_at, updated_at
-	`, productID, buyerID, price, string(domain.OrderStatusPending)).Scan(
+	`, productID, buyerID, sellerID, price, string(domain.OrderStatusPending)).Scan(
 		&o.ID, &o.ProductID, &o.BuyerID, &o.Price, &o.Status, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
@@ -71,9 +71,9 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 	case f.Role != nil && *f.Role == domain.OrderRoleBuyer:
 		whereClause = "o.buyer_id = $1"
 	case f.Role != nil && *f.Role == domain.OrderRoleSeller:
-		whereClause = "p.user_id = $1"
+		whereClause = "o.seller_id = $1"
 	default:
-		whereClause = "(o.buyer_id = $1 OR p.user_id = $1)"
+		whereClause = "(o.buyer_id = $1 OR o.seller_id = $1)"
 	}
 
 	var total int
@@ -137,19 +137,20 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.OrderDetail, error) {
 	var o domain.OrderDetail
 	var thumbnailURL sql.NullString
+	var messageRoomID sql.NullString
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
 			o.id,
 			p.id, p.title,
 			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
 			o.buyer_id,
-			mr.seller_id,
+			o.seller_id,
 			o.price, o.status::TEXT,
 			mr.id,
 			o.created_at, o.updated_at
 		FROM orders o
 		JOIN products p ON p.id = o.product_id
-		JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
+		LEFT JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
 		WHERE o.id = $1::UUID
 	`, id).Scan(
 		&o.ID,
@@ -158,7 +159,7 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.Order
 		&o.BuyerID,
 		&o.SellerID,
 		&o.Price, &o.Status,
-		&o.MessageRoomID,
+		&messageRoomID,
 		&o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
@@ -169,6 +170,9 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.Order
 	}
 	if thumbnailURL.Valid {
 		o.Product.ThumbnailURL = &thumbnailURL.String
+	}
+	if messageRoomID.Valid {
+		o.MessageRoomID = messageRoomID.String
 	}
 	return o, nil
 }

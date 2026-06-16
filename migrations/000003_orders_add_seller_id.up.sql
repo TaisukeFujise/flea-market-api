@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN seller_id VARCHAR(255) NOT NULL REFERENCES users(id);

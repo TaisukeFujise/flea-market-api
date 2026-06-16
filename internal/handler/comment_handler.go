@@ -100,7 +100,7 @@ func (h *CommentHandler) GetList(c *echo.Context) error {
 }
 
 type commentCreateRequest struct {
-	Content string `json:"content" validate:"required"`
+	Content string `json:"content" validate:"required,max=1000"`
 }
 
 type commentCreateResponse struct {
@@ -123,9 +123,9 @@ func (h *CommentHandler) Create(c *echo.Context) error {
 		return err
 	}
 
-	uid, ok := c.Get("firebase_uid").(string)
-	if !ok || uid == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 
 	comment, err := h.service.Create(c.Request().Context(), domain.CommentCreate{
@@ -150,9 +150,9 @@ func (h *CommentHandler) Delete(c *echo.Context) error {
 		return apperror.ErrValidation.New("invalid id")
 	}
 
-	uid, ok := c.Get("firebase_uid").(string)
-	if !ok || uid == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
 	}
 
 	if err := h.service.Delete(c.Request().Context(), id, uid); err != nil {

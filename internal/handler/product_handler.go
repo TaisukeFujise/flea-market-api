@@ -270,21 +270,6 @@ func (h *ProductHandler) Create(c *echo.Context) error {
 	})
 }
 
-func (h *ProductHandler) Delete(c *echo.Context) error {
-	id := c.Param("id")
-
-	uid, ok := c.Get("firebase_uid").(string)
-	if !ok || uid == "" {
-		return apperror.ErrUnauthorized.New("unauthorized")
-	}
-
-	if err := h.service.Delete(c.Request().Context(), id, uid); err != nil {
-		return err
-	}
-
-	return c.NoContent(http.StatusNoContent)
-}
-
 type productUpdateRequest struct {
 	Title       *string `json:"title"        validate:"omitempty,min=1"`
 	Description *string `json:"description"  validate:"omitempty,min=1"`
@@ -293,6 +278,9 @@ type productUpdateRequest struct {
 
 func (h *ProductHandler) Update(c *echo.Context) error {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
 
 	var req productUpdateRequest
 	if err := c.Bind(&req); err != nil {
@@ -312,6 +300,24 @@ func (h *ProductHandler) Update(c *echo.Context) error {
 		Description: req.Description,
 		Price:       req.Price,
 	}); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *ProductHandler) Delete(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	if err := h.service.Delete(c.Request().Context(), id, uid); err != nil {
 		return err
 	}
 

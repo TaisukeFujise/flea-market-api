@@ -278,49 +278,11 @@ func (r *ProductRepository) getImagesByProductID(ctx context.Context, productID 
 	return images, nil
 }
 
-func (r *ProductRepository) Delete(ctx context.Context, id string, sellerID string) error {
-	var ownerID string
-	err := r.db.QueryRowContext(ctx, `
-		SELECT user_id FROM products
-		WHERE id = $1::UUID AND deleted_at IS NULL
-	`, id).Scan(&ownerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.ErrNotFound.New("product not found")
-		}
-		return apperror.ErrInternal.Wrap(err, "failed to get product")
-	}
-	if ownerID != sellerID {
-		return apperror.ErrForbidden.New("forbidden")
-	}
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to begin transaction")
-	}
-	defer tx.Rollback()
-
-	if _, err = tx.ExecContext(ctx, `
-		UPDATE products SET deleted_at = NOW()
-		WHERE id = $1::UUID
-	`, id); err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to delete product")
-	}
-
-	if _, err = tx.ExecContext(ctx, `
-		UPDATE product_images SET deleted_at = NOW()
-		WHERE product_id = $1::UUID AND deleted_at IS NULL
-	`, id); err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to delete product images")
-	}
-
-	if err := tx.Commit(); err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
-	}
-	return nil
-}
-
 func (r *ProductRepository) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
+	if len(input.ImageIDs) == 0 {
+		return domain.Product{}, apperror.ErrBadRequest.New("image_ids is empty")
+	}
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
@@ -329,9 +291,10 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 
 	var summaryID sql.NullString
 	err = tx.QueryRowContext(ctx, `
-		SELECT summary_id FROM product_images
-		WHERE id = $1 AND deleted_at IS NULL
-	`, input.ImageIDs[0]).Scan(&summaryID)
+		SELECT pi.summary_id FROM product_images pi
+		JOIN damage_detection_summaries dds ON dds.id = pi.summary_id
+		WHERE pi.id = $1 AND pi.deleted_at IS NULL AND dds.user_id = $2
+	`, input.ImageIDs[0], sellerID).Scan(&summaryID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Product{}, apperror.ErrNotFound.New("image not found")
@@ -408,10 +371,55 @@ func (r *ProductRepository) Update(ctx context.Context, id string, sellerID stri
 			description = COALESCE($2, description),
 			price       = COALESCE($3, price),
 			updated_at  = NOW()
-		WHERE id = $4::UUID
+		WHERE id = $4::UUID AND deleted_at IS NULL
 	`, input.Title, input.Description, input.Price, id)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to update product")
+	}
+	return nil
+}
+
+func (r *ProductRepository) Delete(ctx context.Context, id string, sellerID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE products SET deleted_at = NOW()
+		WHERE id = $1::UUID AND user_id = $2 AND deleted_at IS NULL
+	`, id, sellerID)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete product")
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if n == 0 {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM products WHERE id = $1::UUID AND deleted_at IS NULL)
+		`, id).Scan(&exists); err != nil {
+			return apperror.ErrInternal.Wrap(err, "failed to check product existence")
+		}
+		if !exists {
+			return apperror.ErrNotFound.New("product not found")
+		}
+		return apperror.ErrForbidden.New("forbidden")
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE product_images SET deleted_at = NOW()
+		WHERE product_id = $1::UUID AND deleted_at IS NULL
+	`, id); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete product images")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
 	}
 	return nil
 }

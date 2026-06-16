@@ -23,7 +23,7 @@ func NewDamageReportHandler(s DamageReportService) *DamageReportHandler {
 }
 
 type damageReportCreateRequest struct {
-	ImageID     *string `json:"image_id" validate:"required"`
+	ImageID     string  `json:"image_id" validate:"required,uuid"`
 	DamageType  string  `json:"damage_type" validate:"required,oneof=scratch dirt wear"`
 	BboxX1      *int    `json:"bbox_x1" validate:"required"`
 	BboxY1      *int    `json:"bbox_y1" validate:"required"`
@@ -46,8 +46,8 @@ func (h *DamageReportHandler) Create(c *echo.Context) error {
 		return err
 	}
 
-	if _, err := uuid.Parse(*req.ImageID); err != nil {
-		return apperror.ErrValidation.New("invalid image_id")
+	if *req.BboxX2 <= *req.BboxX1 || *req.BboxY2 <= *req.BboxY1 {
+		return apperror.ErrValidation.New("bbox_x2 must be greater than bbox_x1, and bbox_y2 must be greater than bbox_y1")
 	}
 
 	uid, err := firebaseUID(c)

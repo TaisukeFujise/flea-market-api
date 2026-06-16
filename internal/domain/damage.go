@@ -10,7 +10,7 @@ const (
 
 type DamageReportCreate struct {
 	ProductID   string
-	ImageID     *string
+	ImageID     string
 	DamageType  DamageType
 	BboxX1      *int
 	BboxY1      *int

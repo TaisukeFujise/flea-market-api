@@ -13,6 +13,7 @@ type DamageReportOrderRepository interface {
 
 type DamageReportRepository interface {
 	Create(ctx context.Context, input domain.DamageReportCreate, uid string) error
+	ValidateImageForProduct(ctx context.Context, imageID, productID string) error
 }
 
 type DamageReportService struct {
@@ -33,7 +34,10 @@ func (s *DamageReportService) Create(ctx context.Context, orderID, uid string, i
 		return apperror.ErrForbidden.New("only buyer can report damage")
 	}
 	if order.Status != domain.OrderStatusCompleted {
-		return apperror.ErrForbidden.New("order must be completed to report damage")
+		return apperror.ErrBadRequest.New("order must be completed to report damage")
+	}
+	if err := s.reportRepo.ValidateImageForProduct(ctx, input.ImageID, order.Product.ID); err != nil {
+		return err
 	}
 	input.ProductID = order.Product.ID
 	return s.reportRepo.Create(ctx, input, uid)

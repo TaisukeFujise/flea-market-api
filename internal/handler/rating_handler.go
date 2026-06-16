@@ -22,7 +22,7 @@ func NewRatingHandler(s RatingService) *RatingHandler {
 }
 
 type ratingCreateRequest struct {
-	Score int `json:"score" validate:"required,min=1,max=5"`
+	Score int `json:"score" validate:"min=1,max=5"`
 }
 
 func (h *RatingHandler) Create(c *echo.Context) error {

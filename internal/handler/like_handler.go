@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -62,17 +61,9 @@ func (h *LikeHandler) Delete(c *echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-type likeProductResponse struct {
-	ID           string  `json:"id"`
-	Title        string  `json:"title"`
-	Price        int     `json:"price"`
-	ThumbnailURL *string `json:"thumbnail_url"`
-	Status       string  `json:"status"`
-}
-
 type likeItemResponse struct {
-	Product   likeProductResponse `json:"product"`
-	CreatedAt time.Time           `json:"created_at"`
+	Product   productSummaryResponse `json:"product"`
+	CreatedAt time.Time              `json:"created_at"`
 }
 
 type likesListResponse struct {
@@ -88,25 +79,11 @@ func (h *LikeHandler) GetLikes(c *echo.Context) error {
 		return err
 	}
 
-	f := domain.LikeFilter{Limit: 20}
-
-	if v := c.QueryParam("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n <= 0 {
-			return apperror.ErrValidation.New("invalid limit")
-		}
-		if n > 100 {
-			n = 100
-		}
-		f.Limit = n
+	limit, offset, err := parsePagination(c, 20)
+	if err != nil {
+		return err
 	}
-	if v := c.QueryParam("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return apperror.ErrValidation.New("invalid offset")
-		}
-		f.Offset = n
-	}
+	f := domain.LikeFilter{Limit: limit, Offset: offset}
 
 	likes, total, err := h.service.ListByUserID(c.Request().Context(), uid, f)
 	if err != nil {
@@ -116,7 +93,7 @@ func (h *LikeHandler) GetLikes(c *echo.Context) error {
 	items := make([]likeItemResponse, len(likes))
 	for i, l := range likes {
 		items[i] = likeItemResponse{
-			Product: likeProductResponse{
+			Product: productSummaryResponse{
 				ID:           l.ProductID,
 				Title:        l.Title,
 				Price:        l.Price,

@@ -325,17 +325,9 @@ func (h *ProductHandler) Delete(c *echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-type viewingHistoryProductResponse struct {
-	ID           string  `json:"id"`
-	Title        string  `json:"title"`
-	Price        int     `json:"price"`
-	ThumbnailURL *string `json:"thumbnail_url"`
-	Status       string  `json:"status"`
-}
-
 type viewingHistoryItemResponse struct {
-	Product  viewingHistoryProductResponse `json:"product"`
-	ViewedAt time.Time                     `json:"viewed_at"`
+	Product  productSummaryResponse `json:"product"`
+	ViewedAt time.Time              `json:"viewed_at"`
 }
 
 type viewingHistoryListResponse struct {
@@ -351,22 +343,11 @@ func (h *ProductHandler) GetViewingHistory(c *echo.Context) error {
 		return err
 	}
 
-	f := domain.ViewingHistoryFilter{Limit: 20}
-
-	if v := c.QueryParam("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n <= 0 {
-			return apperror.ErrValidation.New("invalid limit")
-		}
-		f.Limit = min(n, 100)
+	limit, offset, err := parsePagination(c, 20)
+	if err != nil {
+		return err
 	}
-	if v := c.QueryParam("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return apperror.ErrValidation.New("invalid offset")
-		}
-		f.Offset = n
-	}
+	f := domain.ViewingHistoryFilter{Limit: limit, Offset: offset}
 
 	histories, total, err := h.service.ListViewingHistory(c.Request().Context(), uid, f)
 	if err != nil {
@@ -376,7 +357,7 @@ func (h *ProductHandler) GetViewingHistory(c *echo.Context) error {
 	items := make([]viewingHistoryItemResponse, len(histories))
 	for i, vh := range histories {
 		items[i] = viewingHistoryItemResponse{
-			Product: viewingHistoryProductResponse{
+			Product: productSummaryResponse{
 				ID:           vh.ProductID,
 				Title:        vh.Title,
 				Price:        vh.Price,

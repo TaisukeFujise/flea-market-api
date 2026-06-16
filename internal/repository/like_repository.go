@@ -40,7 +40,12 @@ func (r *LikeRepository) Create(ctx context.Context, productID, userID string) e
 
 func (r *LikeRepository) Delete(ctx context.Context, productID, userID string) error {
 	result, err := r.db.ExecContext(ctx, `
-		DELETE FROM likes WHERE product_id = $1::UUID AND user_id = $2
+		DELETE FROM likes
+		USING products p
+		WHERE likes.product_id = $1::UUID
+		  AND likes.user_id = $2
+		  AND likes.product_id = p.id
+		  AND p.deleted_at IS NULL
 	`, productID, userID)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to delete like")

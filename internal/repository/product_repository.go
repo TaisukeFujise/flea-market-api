@@ -342,3 +342,34 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 
 	return p, nil
 }
+
+func (r *ProductRepository) Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error {
+	var ownerID string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT user_id FROM products
+		WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id).Scan(&ownerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperror.ErrNotFound.New("product not found")
+		}
+		return apperror.ErrInternal.Wrap(err, "failed to get product")
+	}
+	if ownerID != sellerID {
+		return apperror.ErrForbidden.New("forbidden")
+	}
+
+	_, err = r.db.ExecContext(ctx, `
+		UPDATE products
+		SET
+			title       = COALESCE($1, title),
+			description = COALESCE($2, description),
+			price       = COALESCE($3, price),
+			updated_at  = NOW()
+		WHERE id = $4::UUID
+	`, input.Title, input.Description, input.Price, id)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update product")
+	}
+	return nil
+}

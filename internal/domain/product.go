@@ -77,6 +77,12 @@ type ProductCreate struct {
 	Price       int
 }
 
+type ProductUpdate struct {
+	Title       *string
+	Description *string
+	Price       *int
+}
+
 type ProductFilter struct {
 	Query      *string
 	CategoryID *string

@@ -15,6 +15,7 @@ type OrderRepository interface {
 	Create(ctx context.Context, buyerID, productID string, price int) (domain.Order, error)
 	ListByUserID(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)
 	FindByID(ctx context.Context, id string) (domain.OrderDetail, error)
+	UpdateStatus(ctx context.Context, id string, status domain.OrderStatus) error
 }
 
 type OrderService struct {
@@ -56,4 +57,28 @@ func (s *OrderService) GetOrder(ctx context.Context, id, uid string) (domain.Ord
 		return domain.OrderDetail{}, apperror.ErrForbidden.New("forbidden")
 	}
 	return order, nil
+}
+
+func (s *OrderService) UpdateOrderStatus(ctx context.Context, id, uid string, status domain.OrderStatus) error {
+	order, err := s.orderRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if order.Status != domain.OrderStatusPending {
+		return apperror.ErrBadRequest.New("invalid status transition")
+	}
+
+	switch status {
+	case domain.OrderStatusCompleted:
+		if order.BuyerID != uid {
+			return apperror.ErrForbidden.New("only buyer can complete the order")
+		}
+	case domain.OrderStatusCancelled:
+		if order.BuyerID != uid && order.SellerID != uid {
+			return apperror.ErrForbidden.New("forbidden")
+		}
+	}
+
+	return s.orderRepo.UpdateStatus(ctx, id, status)
 }

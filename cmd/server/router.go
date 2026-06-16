@@ -103,7 +103,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.POST("/products/:id/orders", orderHandler.Create)
 	authed.GET("/orders", orderHandler.GetList)
 	authed.GET("/orders/:id", orderHandler.GetByID)
-	authed.PATCH("/orders/:id", notImplemented)
+	authed.PATCH("/orders/:id", orderHandler.UpdateStatus)
 	authed.POST("/orders/:id/damage-reports", notImplemented)
 
 	// message rooms

@@ -15,6 +15,7 @@ type OrderService interface {
 	BuyProduct(ctx context.Context, productID, buyerID string) (domain.Order, error)
 	ListOrders(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)
 	GetOrder(ctx context.Context, id, uid string) (domain.OrderDetail, error)
+	UpdateOrderStatus(ctx context.Context, id, uid string, status domain.OrderStatus) error
 }
 
 type OrderHandler struct {
@@ -165,4 +166,39 @@ func (h *OrderHandler) GetByID(c *echo.Context) error {
 		CreatedAt:     order.CreatedAt,
 		UpdatedAt:     order.UpdatedAt,
 	})
+}
+
+type orderUpdateStatusRequest struct {
+	Status string `json:"status" validate:"required"`
+}
+
+func (h *OrderHandler) UpdateStatus(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	var req orderUpdateStatusRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	status := domain.OrderStatus(req.Status)
+	if status != domain.OrderStatusCompleted && status != domain.OrderStatusCancelled {
+		return apperror.ErrValidation.New("status must be completed or cancelled")
+	}
+
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	if err := h.service.UpdateOrderStatus(c.Request().Context(), id, uid, status); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }

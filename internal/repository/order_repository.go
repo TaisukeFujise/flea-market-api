@@ -169,3 +169,35 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.Order
 	}
 	return o, nil
 }
+
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, status domain.OrderStatus) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	var productID string
+	err = tx.QueryRowContext(ctx, `
+		UPDATE orders SET status = $2, updated_at = NOW()
+		WHERE id = $1::UUID
+		RETURNING product_id
+	`, id, string(status)).Scan(&productID)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update order status")
+	}
+
+	if status == domain.OrderStatusCancelled {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE products SET status = 'on_sale', updated_at = NOW()
+			WHERE id = $1::UUID
+		`, productID); err != nil {
+			return apperror.ErrInternal.Wrap(err, "failed to revert product status")
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
+	return nil
+}

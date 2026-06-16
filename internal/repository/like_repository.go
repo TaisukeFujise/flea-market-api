@@ -51,7 +51,9 @@ func (r *LikeRepository) ListByUserID(ctx context.Context, userID string, f doma
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT p.id, p.title, p.price, p.thumbnail_url, p.status, l.created_at
+		SELECT p.id, p.title, p.price,
+			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
+			p.status::TEXT, l.created_at
 		FROM likes l
 		JOIN products p ON l.product_id = p.id AND p.deleted_at IS NULL
 		WHERE l.user_id = $1
@@ -66,8 +68,12 @@ func (r *LikeRepository) ListByUserID(ctx context.Context, userID string, f doma
 	likes := make([]domain.Like, 0)
 	for rows.Next() {
 		var like domain.Like
-		if err := rows.Scan(&like.ProductID, &like.Title, &like.Price, &like.ThumbnailURL, &like.Status, &like.CreatedAt); err != nil {
+		var thumbnailURL sql.NullString
+		if err := rows.Scan(&like.ProductID, &like.Title, &like.Price, &thumbnailURL, &like.Status, &like.CreatedAt); err != nil {
 			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan like")
+		}
+		if thumbnailURL.Valid {
+			like.ThumbnailURL = &thumbnailURL.String
 		}
 		likes = append(likes, like)
 	}

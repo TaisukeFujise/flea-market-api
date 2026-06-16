@@ -40,7 +40,9 @@ func (r *ViewingHistoryRepository) ListByUserID(ctx context.Context, userID stri
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT p.id, p.title, p.price, p.thumbnail_url, p.status, vh.viewed_at
+		SELECT p.id, p.title, p.price,
+			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
+			p.status::TEXT, vh.viewed_at
 		FROM viewing_history vh
 		JOIN products p ON vh.product_id = p.id AND p.deleted_at IS NULL
 		WHERE vh.user_id = $1
@@ -55,8 +57,12 @@ func (r *ViewingHistoryRepository) ListByUserID(ctx context.Context, userID stri
 	histories := make([]domain.ViewingHistory, 0)
 	for rows.Next() {
 		var vh domain.ViewingHistory
-		if err := rows.Scan(&vh.ProductID, &vh.Title, &vh.Price, &vh.ThumbnailURL, &vh.Status, &vh.ViewedAt); err != nil {
+		var thumbnailURL sql.NullString
+		if err := rows.Scan(&vh.ProductID, &vh.Title, &vh.Price, &thumbnailURL, &vh.Status, &vh.ViewedAt); err != nil {
 			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan viewing history")
+		}
+		if thumbnailURL.Valid {
+			vh.ThumbnailURL = &thumbnailURL.String
 		}
 		histories = append(histories, vh)
 	}

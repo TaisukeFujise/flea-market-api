@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS product_images_product_id_angle_unique;

@@ -14,6 +14,7 @@ import (
 type OrderService interface {
 	BuyProduct(ctx context.Context, productID, buyerID string) (domain.Order, error)
 	ListOrders(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)
+	GetOrder(ctx context.Context, id, uid string) (domain.OrderDetail, error)
 }
 
 type OrderHandler struct {
@@ -120,5 +121,48 @@ func (h *OrderHandler) GetList(c *echo.Context) error {
 		Total:  total,
 		Limit:  f.Limit,
 		Offset: f.Offset,
+	})
+}
+
+type orderDetailResponse struct {
+	ID            string               `json:"id"`
+	Product       orderProductResponse `json:"product"`
+	BuyerID       string               `json:"buyer_id"`
+	Price         int                  `json:"price"`
+	Status        string               `json:"status"`
+	MessageRoomID string               `json:"message_room_id"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+}
+
+func (h *OrderHandler) GetByID(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	order, err := h.service.GetOrder(c.Request().Context(), id, uid)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, orderDetailResponse{
+		ID: order.ID,
+		Product: orderProductResponse{
+			ID:           order.Product.ID,
+			Title:        order.Product.Title,
+			ThumbnailURL: order.Product.ThumbnailURL,
+		},
+		BuyerID:       order.BuyerID,
+		Price:         order.Price,
+		Status:        string(order.Status),
+		MessageRoomID: order.MessageRoomID,
+		CreatedAt:     order.CreatedAt,
+		UpdatedAt:     order.UpdatedAt,
 	})
 }

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
@@ -128,4 +129,43 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 	}
 
 	return items, total, nil
+}
+
+func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.OrderDetail, error) {
+	var o domain.OrderDetail
+	var thumbnailURL sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT
+			o.id,
+			p.id, p.title,
+			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
+			o.buyer_id,
+			mr.seller_id,
+			o.price, o.status::TEXT,
+			mr.id,
+			o.created_at, o.updated_at
+		FROM orders o
+		JOIN products p ON p.id = o.product_id
+		JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
+		WHERE o.id = $1::UUID
+	`, id).Scan(
+		&o.ID,
+		&o.Product.ID, &o.Product.Title,
+		&thumbnailURL,
+		&o.BuyerID,
+		&o.SellerID,
+		&o.Price, &o.Status,
+		&o.MessageRoomID,
+		&o.CreatedAt, &o.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.OrderDetail{}, apperror.ErrNotFound.New("order not found")
+		}
+		return domain.OrderDetail{}, apperror.ErrInternal.Wrap(err, "failed to get order")
+	}
+	if thumbnailURL.Valid {
+		o.Product.ThumbnailURL = &thumbnailURL.String
+	}
+	return o, nil
 }

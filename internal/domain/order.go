@@ -48,3 +48,15 @@ type OrderFilter struct {
 	Limit  int
 	Offset int
 }
+
+type OrderDetail struct {
+	ID            string
+	Product       OrderProduct
+	BuyerID       string
+	SellerID      string
+	Price         int
+	Status        OrderStatus
+	MessageRoomID string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}

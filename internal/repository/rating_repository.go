@@ -18,7 +18,7 @@ func NewRatingRepository(db *sql.DB) *RatingRepository {
 	return &RatingRepository{db: db}
 }
 
-func (r *RatingRepository) Create(ctx context.Context, rating domain.Rating) error {
+func (r *RatingRepository) Create(ctx context.Context, rating domain.RatingCreate) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO ratings (order_id, rater_id, ratee_id, score)
 		VALUES ($1::UUID, $2, $3, $4)

@@ -8,19 +8,15 @@ import (
 )
 
 type RatingRepository interface {
-	Create(ctx context.Context, rating domain.Rating) error
-}
-
-type RatingOrderRepository interface {
-	FindByID(ctx context.Context, id string) (domain.OrderDetail, error)
+	Create(ctx context.Context, rating domain.RatingCreate) error
 }
 
 type RatingService struct {
 	ratingRepo RatingRepository
-	orderRepo  RatingOrderRepository
+	orderRepo  OrderFinder
 }
 
-func NewRatingService(r RatingRepository, o RatingOrderRepository) *RatingService {
+func NewRatingService(r RatingRepository, o OrderFinder) *RatingService {
 	return &RatingService{ratingRepo: r, orderRepo: o}
 }
 
@@ -33,9 +29,9 @@ func (s *RatingService) Create(ctx context.Context, orderID, uid string, score i
 		return apperror.ErrForbidden.New("only buyer can submit feedback")
 	}
 	if order.Status != domain.OrderStatusCompleted {
-		return apperror.ErrForbidden.New("order must be completed to submit feedback")
+		return apperror.ErrBadRequest.New("order must be completed to submit feedback")
 	}
-	return s.ratingRepo.Create(ctx, domain.Rating{
+	return s.ratingRepo.Create(ctx, domain.RatingCreate{
 		OrderID: orderID,
 		RaterID: uid,
 		RateeID: order.SellerID,

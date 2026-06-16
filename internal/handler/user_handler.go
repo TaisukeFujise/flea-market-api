@@ -66,7 +66,6 @@ func (u *UserHandler) Register(c *echo.Context) error {
 
 type UpdateUserRequest struct {
 	DisplayName *string `json:"display_name" validate:"omitempty,max=255"`
-	AvatarURL   *string `json:"avatar_url"   validate:"omitempty,http_url"`
 }
 
 func (u *UserHandler) Update(c *echo.Context) error {
@@ -85,7 +84,6 @@ func (u *UserHandler) Update(c *echo.Context) error {
 
 	userUpdate := domain.UserUpdate{
 		DisplayName: req.DisplayName,
-		AvatarURL:   req.AvatarURL,
 	}
 	if err := u.service.Update(ctx, id, userUpdate); err != nil {
 		return err

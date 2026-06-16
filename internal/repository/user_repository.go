@@ -49,11 +49,10 @@ func (r *UserRepository) Update(ctx context.Context, id string, userUpdate domai
 	const sqlStr = `
 		UPDATE users SET
 			display_name = COALESCE($2, display_name),
-			avatar_url = COALESCE($3, avatar_url),
 			updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	result, err := r.db.ExecContext(ctx, sqlStr, id, userUpdate.DisplayName, userUpdate.AvatarURL)
+	result, err := r.db.ExecContext(ctx, sqlStr, id, userUpdate.DisplayName)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to exec update user")
 	}

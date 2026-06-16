@@ -15,5 +15,4 @@ type User struct {
 
 type UserUpdate struct {
 	DisplayName *string
-	AvatarURL   *string
 }

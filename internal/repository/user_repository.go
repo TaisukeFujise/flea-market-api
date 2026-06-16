@@ -49,11 +49,10 @@ func (r *UserRepository) Update(ctx context.Context, id string, userUpdate domai
 	const sqlStr = `
 		UPDATE users SET
 			display_name = COALESCE($2, display_name),
-			avatar_url = COALESCE($3, avatar_url),
 			updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	result, err := r.db.ExecContext(ctx, sqlStr, id, userUpdate.DisplayName, userUpdate.AvatarURL)
+	result, err := r.db.ExecContext(ctx, sqlStr, id, userUpdate.DisplayName)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to exec update user")
 	}
@@ -98,6 +97,28 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 		user.RatingAvg = &ratingAvg.Float64
 	}
 	return user, nil
+}
+
+func (r *UserRepository) UpdateAvatar(ctx context.Context, id string, avatarURL string) (*string, error) {
+	// CTE で更新前の avatar_url をアトミックに取得する。
+	// RETURNING だけだと更新後の値が返るため、WITH で更新前スナップショットを取る。
+	const sqlStr = `
+		WITH old AS (
+			SELECT avatar_url FROM users WHERE id = $1 AND deleted_at IS NULL
+		)
+		UPDATE users SET avatar_url = $2, updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING (SELECT avatar_url FROM old)
+	`
+	var oldURL *string
+	err := r.db.QueryRowContext(ctx, sqlStr, id, avatarURL).Scan(&oldURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, apperror.ErrNotFound.New("user not found")
+	}
+	if err != nil {
+		return nil, apperror.ErrInternal.Wrap(err, "failed to update avatar url")
+	}
+	return oldURL, nil
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id string) error {

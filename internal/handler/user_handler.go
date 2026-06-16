@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -15,6 +16,7 @@ type UserService interface {
 	Update(ctx context.Context, id string, userUpdate domain.UserUpdate) error
 	Get(ctx context.Context, id string) (domain.User, error)
 	Delete(ctx context.Context, id string) error
+	UploadAvatar(ctx context.Context, id string, r io.Reader, contentType string) error
 }
 
 type UserHandler struct {
@@ -66,7 +68,6 @@ func (u *UserHandler) Register(c *echo.Context) error {
 
 type UpdateUserRequest struct {
 	DisplayName *string `json:"display_name" validate:"omitempty,max=255"`
-	AvatarURL   *string `json:"avatar_url"   validate:"omitempty,http_url"`
 }
 
 func (u *UserHandler) Update(c *echo.Context) error {
@@ -85,7 +86,6 @@ func (u *UserHandler) Update(c *echo.Context) error {
 
 	userUpdate := domain.UserUpdate{
 		DisplayName: req.DisplayName,
-		AvatarURL:   req.AvatarURL,
 	}
 	if err := u.service.Update(ctx, id, userUpdate); err != nil {
 		return err
@@ -122,6 +122,44 @@ func (u *UserHandler) Get(c *echo.Context) error {
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	})
+}
+
+func (u *UserHandler) UploadAvatar(c *echo.Context) error {
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	fh, err := c.FormFile("avatar")
+	if err != nil {
+		return apperror.ErrValidation.Wrap(err, "avatar image is required")
+	}
+	if fh.Size == 0 {
+		return apperror.ErrValidation.New("avatar image is empty")
+	}
+	if fh.Size > maxImageSize {
+		return apperror.ErrValidation.New("avatar image exceeds 10MB limit")
+	}
+
+	f, err := fh.Open()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to open avatar image")
+	}
+	defer f.Close()
+
+	ct, r, err := sniffImage(f)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to read avatar image")
+	}
+	if ct != "image/jpeg" && ct != "image/png" {
+		return apperror.ErrValidation.New("avatar image must be JPEG or PNG")
+	}
+
+	ctx := c.Request().Context()
+	if err := u.service.UploadAvatar(ctx, uid, r, ct); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (u *UserHandler) Delete(c *echo.Context) error {

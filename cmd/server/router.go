@@ -30,7 +30,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authMW := mw.AuthMiddleware{Client: fb, DB: db}
 
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo, fb)
+	userService := service.NewUserService(userRepo, fb, gcs)
 	userHandler := handler.NewUserHandler(userService)
 
 	categoryRepo := repository.NewCategoryRepository(db)
@@ -57,6 +57,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.GET("/me", userHandler.Get)
 	authed.PATCH("/me", userHandler.Update)
 	authed.DELETE("/me", userHandler.Delete)
+	authed.PUT("/me/avatar", userHandler.UploadAvatar)
 	authed.GET("/me/likes", notImplemented)
 	authed.GET("/me/viewing-history", notImplemented)
 

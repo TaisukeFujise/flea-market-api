@@ -99,19 +99,26 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 	return user, nil
 }
 
-func (r *UserRepository) UpdateAvatar(ctx context.Context, id string, avatarURL string) error {
+func (r *UserRepository) UpdateAvatar(ctx context.Context, id string, avatarURL string) (*string, error) {
+	// CTE で更新前の avatar_url をアトミックに取得する。
+	// RETURNING だけだと更新後の値が返るため、WITH で更新前スナップショットを取る。
 	const sqlStr = `
+		WITH old AS (
+			SELECT avatar_url FROM users WHERE id = $1 AND deleted_at IS NULL
+		)
 		UPDATE users SET avatar_url = $2, updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING (SELECT avatar_url FROM old)
 	`
-	result, err := r.db.ExecContext(ctx, sqlStr, id, avatarURL)
+	var oldURL *string
+	err := r.db.QueryRowContext(ctx, sqlStr, id, avatarURL).Scan(&oldURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, apperror.ErrNotFound.New("user not found")
+	}
 	if err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to update avatar url")
+		return nil, apperror.ErrInternal.Wrap(err, "failed to update avatar url")
 	}
-	if n, _ := result.RowsAffected(); n == 0 {
-		return apperror.ErrNotFound.New("user not found")
-	}
-	return nil
+	return oldURL, nil
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id string) error {

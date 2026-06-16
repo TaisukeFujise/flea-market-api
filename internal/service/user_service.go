@@ -17,7 +17,7 @@ type UserRepository interface {
 	Update(ctx context.Context, id string, userUpdate domain.UserUpdate) error
 	Get(ctx context.Context, id string) (domain.User, error)
 	Delete(ctx context.Context, id string) error
-	UpdateAvatar(ctx context.Context, id string, avatarURL string) error
+	UpdateAvatar(ctx context.Context, id string, avatarURL string) (*string, error)
 }
 
 type FirebaseClient interface {
@@ -57,11 +57,6 @@ func (s *UserService) Delete(ctx context.Context, id string) error {
 }
 
 func (s *UserService) UploadAvatar(ctx context.Context, id string, r io.Reader, contentType string) error {
-	user, err := s.repo.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-
 	ext := ".jpg"
 	if contentType == "image/png" {
 		ext = ".png"
@@ -72,13 +67,14 @@ func (s *UserService) UploadAvatar(ctx context.Context, id string, r io.Reader, 
 		return apperror.ErrInternal.Wrap(err, "failed to upload avatar to GCS")
 	}
 
-	if err := s.repo.UpdateAvatar(ctx, id, newURL); err != nil {
+	oldURL, err := s.repo.UpdateAvatar(ctx, id, newURL)
+	if err != nil {
 		_ = s.storage.Delete(ctx, name)
 		return err
 	}
 
-	if user.AvatarURL != nil {
-		if oldName, ok := gcsObjectName(*user.AvatarURL); ok {
+	if oldURL != nil {
+		if oldName, ok := gcsObjectName(*oldURL); ok {
 			if err := s.storage.Delete(ctx, oldName); err != nil {
 				log.Printf("warn: failed to delete old avatar %s: %v", oldName, err)
 			}

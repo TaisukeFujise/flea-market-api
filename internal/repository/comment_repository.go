@@ -1,0 +1,114 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
+	"github.com/TaisukeFujise/flea-market-api/internal/domain"
+)
+
+type CommentRepository struct {
+	db *sql.DB
+}
+
+func NewCommentRepository(db *sql.DB) *CommentRepository {
+	return &CommentRepository{db: db}
+}
+
+func (r *CommentRepository) ListByProductID(ctx context.Context, productID string, f domain.CommentFilter) ([]domain.Comment, int, error) {
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM products WHERE id = $1::UUID AND deleted_at IS NULL)
+	`, productID).Scan(&exists); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to check product existence")
+	}
+	if !exists {
+		return nil, 0, apperror.ErrNotFound.New("product not found")
+	}
+
+	// total は list クエリとは別に取得する。COUNT(*) OVER() は OFFSET がデータ件数を超えると
+	// 行が返らず 0 になるため。2クエリ間でわずかなズレが生じる可能性があるが、
+	// ページネーション UI での許容範囲とみなす（詳細は CLAUDE.md の Pagination を参照）。
+	var total int
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM comments WHERE product_id = $1 AND deleted_at IS NULL
+	`, productID).Scan(&total); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count comments")
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT c.id, u.id, u.display_name, u.avatar_url, c.content, c.created_at
+		FROM comments c
+		JOIN users u ON c.user_id = u.id AND u.deleted_at IS NULL
+		WHERE c.product_id = $1 AND c.deleted_at IS NULL
+		ORDER BY c.created_at ASC, c.id ASC
+		LIMIT $2 OFFSET $3
+	`, productID, f.Limit, f.Offset)
+	if err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to list comments")
+	}
+	defer rows.Close()
+
+	comments := make([]domain.Comment, 0)
+	for rows.Next() {
+		var c domain.Comment
+		if err := rows.Scan(&c.ID, &c.UserID, &c.UserDisplayName, &c.UserAvatarURL, &c.Content, &c.CreatedAt); err != nil {
+			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan comment")
+		}
+		comments = append(comments, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to iterate comments")
+	}
+
+	return comments, total, nil
+}
+
+func (r *CommentRepository) Create(ctx context.Context, input domain.CommentCreate) (domain.Comment, error) {
+	var c domain.Comment
+	err := r.db.QueryRowContext(ctx, `
+		WITH product_check AS (
+			SELECT id FROM products WHERE id = $1::UUID AND deleted_at IS NULL
+		)
+		INSERT INTO comments (product_id, user_id, content)
+		SELECT $1::UUID, $2, $3 FROM product_check
+		RETURNING id, content, created_at
+	`, input.ProductID, input.UserID, input.Content).Scan(&c.ID, &c.Content, &c.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Comment{}, apperror.ErrNotFound.New("product not found")
+	}
+	if err != nil {
+		return domain.Comment{}, apperror.ErrInternal.Wrap(err, "failed to insert comment")
+	}
+	return c, nil
+}
+
+func (r *CommentRepository) GetOwnerID(ctx context.Context, id string) (string, error) {
+	var userID string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT user_id FROM comments WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", apperror.ErrNotFound.New("comment not found")
+	}
+	if err != nil {
+		return "", apperror.ErrInternal.Wrap(err, "failed to get comment owner")
+	}
+	return userID, nil
+}
+
+func (r *CommentRepository) Delete(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE comments SET deleted_at = NOW() WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete comment")
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return apperror.ErrNotFound.New("comment not found")
+	}
+	return nil
+}

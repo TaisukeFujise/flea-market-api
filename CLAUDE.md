@@ -64,6 +64,14 @@ internal/
 - Domain ENUM values (condition, sort, status, etc.) are defined as typed string constants in `domain/` (e.g. `type ProductCondition string` + `const ConditionGood ProductCondition = "good"`). Use these constants in handlers and repositories instead of raw string literals.
 - Domain struct fields that correspond to DB ENUMs must use the typed constant (e.g. `ProductCondition`, `ProductStatus`, `ModelStatus`, `ImageAngle`, `DamageType`, `OrderStatus`) — never `string`. When assigning to handler response structs (which use `string` for JSON), convert explicitly with `string(value)`.
 
+## Pagination
+
+一覧系エンドポイントは `limit` / `offset` + `total` を返す。`total` はリスト取得クエリとは**別の `COUNT(*)` クエリ**で取得する。
+
+`COUNT(*) OVER()` をリストクエリに混ぜる実装は避ける。理由: OFFSET がデータ件数を超えた場合に行が返らず `total` が 0 になり、フロントのページネーション UI が壊れる。
+
+2クエリ間でデータが変化し `total` とリスト件数がわずかにズレる可能性があるが、ページネーション UI での許容範囲とみなす。
+
 ## Error handling
 
 `apperror.AppError` carries an `ErrCode` string and wraps the original error. Handlers never marshal `AppError` directly — `handler.ErrorHandler` (the Echo `HTTPErrorHandler`) converts it to `ErrorResponse{error: {code, message}}`. Use `ErrCode.New(msg)` or `ErrCode.Wrap(err, msg)` to create errors in service/repository layers.

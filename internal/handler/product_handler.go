@@ -18,6 +18,7 @@ type ProductService interface {
 	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 	Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error
 	Delete(ctx context.Context, id string, sellerID string) error
+	ListViewingHistory(ctx context.Context, userID string, f domain.ViewingHistoryFilter) ([]domain.ViewingHistory, int, error)
 }
 
 type ProductHandler struct {
@@ -322,4 +323,74 @@ func (h *ProductHandler) Delete(c *echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+type viewingHistoryProductResponse struct {
+	ID           string  `json:"id"`
+	Title        string  `json:"title"`
+	Price        int     `json:"price"`
+	ThumbnailURL *string `json:"thumbnail_url"`
+	Status       string  `json:"status"`
+}
+
+type viewingHistoryItemResponse struct {
+	Product  viewingHistoryProductResponse `json:"product"`
+	ViewedAt time.Time                     `json:"viewed_at"`
+}
+
+type viewingHistoryListResponse struct {
+	Items  []viewingHistoryItemResponse `json:"items"`
+	Total  int                          `json:"total"`
+	Limit  int                          `json:"limit"`
+	Offset int                          `json:"offset"`
+}
+
+func (h *ProductHandler) GetViewingHistory(c *echo.Context) error {
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	f := domain.ViewingHistoryFilter{Limit: 20}
+
+	if v := c.QueryParam("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return apperror.ErrValidation.New("invalid limit")
+		}
+		f.Limit = min(n, 100)
+	}
+	if v := c.QueryParam("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return apperror.ErrValidation.New("invalid offset")
+		}
+		f.Offset = n
+	}
+
+	histories, total, err := h.service.ListViewingHistory(c.Request().Context(), uid, f)
+	if err != nil {
+		return err
+	}
+
+	items := make([]viewingHistoryItemResponse, len(histories))
+	for i, vh := range histories {
+		items[i] = viewingHistoryItemResponse{
+			Product: viewingHistoryProductResponse{
+				ID:           vh.ProductID,
+				Title:        vh.Title,
+				Price:        vh.Price,
+				ThumbnailURL: vh.ThumbnailURL,
+				Status:       string(vh.Status),
+			},
+			ViewedAt: vh.ViewedAt,
+		}
+	}
+
+	return c.JSON(http.StatusOK, viewingHistoryListResponse{
+		Items:  items,
+		Total:  total,
+		Limit:  f.Limit,
+		Offset: f.Offset,
+	})
 }

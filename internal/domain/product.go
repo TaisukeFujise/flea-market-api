@@ -107,3 +107,17 @@ type LikeFilter struct {
 	Limit  int
 	Offset int
 }
+
+type ViewingHistory struct {
+	ProductID    string
+	Title        string
+	Price        int
+	ThumbnailURL *string
+	Status       ProductStatus
+	ViewedAt     time.Time
+}
+
+type ViewingHistoryFilter struct {
+	Limit  int
+	Offset int
+}

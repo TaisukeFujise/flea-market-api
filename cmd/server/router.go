@@ -51,6 +51,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	commentService := service.NewCommentService(commentRepo)
 	commentHandler := handler.NewCommentHandler(commentService)
 
+	likeRepo := repository.NewLikeRepository(db)
+	likeService := service.NewLikeService(likeRepo)
+	likeHandler := handler.NewLikeHandler(likeService)
+
 	api := e.Group("/api")
 	public := api.Group("")
 	authed := api.Group("")
@@ -88,8 +92,8 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.DELETE("/comments/:id", commentHandler.Delete)
 
 	// likes
-	authed.POST("/products/:id/likes", notImplemented)
-	authed.DELETE("/products/:id/likes", notImplemented)
+	authed.POST("/products/:id/likes", likeHandler.Create)
+	authed.DELETE("/products/:id/likes", likeHandler.Delete)
 
 	// orders
 	authed.POST("/products/:id/orders", notImplemented)

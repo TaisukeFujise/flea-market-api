@@ -95,8 +95,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 			(
 				SELECT pi_t.url
 				FROM product_images pi_t
-				WHERE pi_t.product_id = p.id AND pi_t.deleted_at IS NULL
-				ORDER BY pi_t.created_at
+				WHERE pi_t.product_id = p.id AND pi_t.deleted_at IS NULL AND pi_t.angle = 'front'
 				LIMIT 1
 			),
 			pm.status::TEXT,

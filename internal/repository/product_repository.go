@@ -9,6 +9,7 @@ import (
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
+	"github.com/lib/pq"
 )
 
 type ProductRepository struct {
@@ -33,8 +34,17 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 		p2 := nextArg("%" + *f.Query + "%")
 		wheres = append(wheres, fmt.Sprintf("(p.title ILIKE %s OR p.description ILIKE %s)", p1, p2))
 	}
+	var cte string
 	if f.CategoryID != nil {
-		wheres = append(wheres, fmt.Sprintf("p.category_id = %s::UUID", nextArg(*f.CategoryID)))
+		cte = fmt.Sprintf(`
+			WITH RECURSIVE category_tree AS (
+				SELECT id FROM categories WHERE id = %s::UUID
+				UNION ALL
+				SELECT c.id FROM categories c
+				INNER JOIN category_tree ct ON c.parent_id = ct.id
+			)
+		`, nextArg(*f.CategoryID))
+		wheres = append(wheres, "p.category_id IN (SELECT id FROM category_tree)")
 	}
 	if f.MinPrice != nil {
 		wheres = append(wheres, fmt.Sprintf("p.price >= %s", nextArg(*f.MinPrice)))
@@ -63,7 +73,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 	limitArg := nextArg(f.Limit)
 	offsetArg := nextArg(f.Offset)
 
-	sqlStr := fmt.Sprintf(`
+	sqlStr := cte + fmt.Sprintf(`
 		SELECT
 			p.id,
 			p.category_id,
@@ -161,7 +171,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			u.id,
 			u.display_name,
 			u.avatar_url,
-			` + ratingsSelectSQL + `,
+			`+ratingsSelectSQL+`,
 			pm.status::TEXT,
 			pm.glb_url,
 			p.created_at,
@@ -169,7 +179,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			%s
 		FROM products p
 		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
-		` + ratingsJoinSQL + `
+		`+ratingsJoinSQL+`
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
 			FROM product_models
@@ -266,4 +276,150 @@ func (r *ProductRepository) getImagesByProductID(ctx context.Context, productID 
 		return nil, apperror.ErrInternal.Wrap(err, "failed to iterate product images")
 	}
 	return images, nil
+}
+
+func (r *ProductRepository) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
+	if len(input.ImageIDs) == 0 {
+		return domain.Product{}, apperror.ErrBadRequest.New("image_ids is empty")
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	var summaryID sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT pi.summary_id FROM product_images pi
+		JOIN damage_detection_summaries dds ON dds.id = pi.summary_id
+		WHERE pi.id = $1 AND pi.deleted_at IS NULL AND dds.user_id = $2
+	`, input.ImageIDs[0], sellerID).Scan(&summaryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Product{}, apperror.ErrNotFound.New("image not found")
+		}
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get product image")
+	}
+	if !summaryID.Valid {
+		return domain.Product{}, apperror.ErrBadRequest.New("damage detection not completed")
+	}
+
+	var condition domain.ProductCondition
+	var conditionNote string
+	err = tx.QueryRowContext(ctx, `
+		SELECT condition::TEXT, condition_note FROM damage_detection_summaries
+		WHERE id = $1
+	`, summaryID.String).Scan(&condition, &conditionNote)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get damage detection summary")
+	}
+
+	var p domain.Product
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
+		RETURNING id
+	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), conditionNote).
+		Scan(&p.ID)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE product_images SET product_id = $1
+		WHERE id = ANY($2) AND deleted_at IS NULL
+	`, p.ID, pq.Array(input.ImageIDs))
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to update product images")
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if int(updated) != len(input.ImageIDs) {
+		return domain.Product{}, apperror.ErrNotFound.New("one or more image_ids not found")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
+
+	return p, nil
+}
+
+func (r *ProductRepository) Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error {
+	var ownerID string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT user_id FROM products
+		WHERE id = $1::UUID AND deleted_at IS NULL
+	`, id).Scan(&ownerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperror.ErrNotFound.New("product not found")
+		}
+		return apperror.ErrInternal.Wrap(err, "failed to get product")
+	}
+	if ownerID != sellerID {
+		return apperror.ErrForbidden.New("forbidden")
+	}
+
+	_, err = r.db.ExecContext(ctx, `
+		UPDATE products
+		SET
+			title       = COALESCE($1, title),
+			description = COALESCE($2, description),
+			price       = COALESCE($3, price),
+			updated_at  = NOW()
+		WHERE id = $4::UUID AND deleted_at IS NULL
+	`, input.Title, input.Description, input.Price, id)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update product")
+	}
+	return nil
+}
+
+func (r *ProductRepository) Delete(ctx context.Context, id string, sellerID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE products SET deleted_at = NOW()
+		WHERE id = $1::UUID AND user_id = $2 AND deleted_at IS NULL
+	`, id, sellerID)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete product")
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if n == 0 {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM products WHERE id = $1::UUID AND deleted_at IS NULL)
+		`, id).Scan(&exists); err != nil {
+			return apperror.ErrInternal.Wrap(err, "failed to check product existence")
+		}
+		if !exists {
+			return apperror.ErrNotFound.New("product not found")
+		}
+		return apperror.ErrForbidden.New("forbidden")
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE product_images SET deleted_at = NOW()
+		WHERE product_id = $1::UUID AND deleted_at IS NULL
+	`, id); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete product images")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
+	return nil
 }

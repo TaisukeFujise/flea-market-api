@@ -15,6 +15,9 @@ import (
 type ProductService interface {
 	ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
+	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
+	Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error
+	Delete(ctx context.Context, id string, sellerID string) error
 }
 
 type ProductHandler struct {
@@ -223,4 +226,100 @@ func (h *ProductHandler) GetByID(c *echo.Context) error {
 		CreatedAt:     product.CreatedAt,
 		UpdatedAt:     product.UpdatedAt,
 	})
+}
+
+type productCreateRequest struct {
+	ImageIDs    []string `json:"image_ids"    validate:"required,min=1,dive,uuid"`
+	CategoryID  string   `json:"category_id"  validate:"required,uuid"`
+	Title       string   `json:"title"        validate:"required"`
+	Description string   `json:"description"  validate:"required"`
+	Price       int      `json:"price"        validate:"required,min=1"`
+}
+
+type productCreateResponse struct {
+	ID string `json:"id"`
+}
+
+func (h *ProductHandler) Create(c *echo.Context) error {
+	var req productCreateRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	product, err := h.service.Create(c.Request().Context(), uid, domain.ProductCreate{
+		ImageIDs:    req.ImageIDs,
+		CategoryID:  req.CategoryID,
+		Title:       req.Title,
+		Description: req.Description,
+		Price:       req.Price,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusCreated, productCreateResponse{
+		ID: product.ID,
+	})
+}
+
+type productUpdateRequest struct {
+	Title       *string `json:"title"        validate:"omitempty,min=1"`
+	Description *string `json:"description"  validate:"omitempty,min=1"`
+	Price       *int    `json:"price"        validate:"omitempty,min=1"`
+}
+
+func (h *ProductHandler) Update(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	var req productUpdateRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	if err := h.service.Update(c.Request().Context(), id, uid, domain.ProductUpdate{
+		Title:       req.Title,
+		Description: req.Description,
+		Price:       req.Price,
+	}); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *ProductHandler) Delete(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	if err := h.service.Delete(c.Request().Context(), id, uid); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }

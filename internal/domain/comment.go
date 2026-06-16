@@ -15,3 +15,9 @@ type CommentFilter struct {
 	Limit  int
 	Offset int
 }
+
+type CommentCreate struct {
+	ProductID string
+	UserID    string
+	Content   string
+}

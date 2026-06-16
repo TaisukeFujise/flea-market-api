@@ -16,6 +16,38 @@ func NewCommentRepository(db *sql.DB) *CommentRepository {
 	return &CommentRepository{db: db}
 }
 
+func (r *CommentRepository) Create(ctx context.Context, input domain.CommentCreate) (domain.Comment, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Comment{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM products WHERE id = $1::UUID AND deleted_at IS NULL)
+	`, input.ProductID).Scan(&exists); err != nil {
+		return domain.Comment{}, apperror.ErrInternal.Wrap(err, "failed to check product existence")
+	}
+	if !exists {
+		return domain.Comment{}, apperror.ErrNotFound.New("product not found")
+	}
+
+	var c domain.Comment
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO comments (product_id, user_id, content)
+		VALUES ($1::UUID, $2, $3)
+		RETURNING id, content, created_at
+	`, input.ProductID, input.UserID, input.Content).Scan(&c.ID, &c.Content, &c.CreatedAt); err != nil {
+		return domain.Comment{}, apperror.ErrInternal.Wrap(err, "failed to insert comment")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Comment{}, apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
+	return c, nil
+}
+
 func (r *CommentRepository) ListByProductID(ctx context.Context, productID string, f domain.CommentFilter) ([]domain.Comment, int, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {

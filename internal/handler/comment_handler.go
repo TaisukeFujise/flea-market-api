@@ -13,6 +13,7 @@ import (
 )
 
 type CommentService interface {
+	Create(ctx context.Context, input domain.CommentCreate) (domain.Comment, error)
 	ListByProductID(ctx context.Context, productID string, f domain.CommentFilter) ([]domain.Comment, int, error)
 }
 
@@ -42,6 +43,51 @@ type commentListResponse struct {
 	Total  int                   `json:"total"`
 	Limit  int                   `json:"limit"`
 	Offset int                   `json:"offset"`
+}
+
+type commentCreateRequest struct {
+	Content string `json:"content" validate:"required"`
+}
+
+type commentCreateResponse struct {
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (h *CommentHandler) Create(c *echo.Context) error {
+	productID := c.Param("id")
+	if _, err := uuid.Parse(productID); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	var req commentCreateRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	comment, err := h.service.Create(c.Request().Context(), domain.CommentCreate{
+		ProductID: productID,
+		UserID:    uid,
+		Content:   req.Content,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusCreated, commentCreateResponse{
+		ID:        comment.ID,
+		Content:   comment.Content,
+		CreatedAt: comment.CreatedAt,
+	})
 }
 
 func (h *CommentHandler) GetList(c *echo.Context) error {

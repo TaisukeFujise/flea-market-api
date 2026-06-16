@@ -84,7 +84,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 
 	// comments
 	public.GET("/products/:id/comments", commentHandler.GetList)
-	authed.POST("/products/:id/comments", notImplemented)
+	authed.POST("/products/:id/comments", commentHandler.Create)
 	authed.DELETE("/comments/:id", notImplemented)
 
 	// likes

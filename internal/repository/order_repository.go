@@ -26,20 +26,23 @@ func (r *OrderRepository) Create(ctx context.Context, buyerID, productID string,
 
 	var sellerID string
 	err = tx.QueryRowContext(ctx, `
-		UPDATE products SET status = 'sold_out', updated_at = NOW()
-		WHERE id = $1::UUID AND status = 'on_sale' AND deleted_at IS NULL
+		UPDATE products SET status = $2::product_status, updated_at = NOW()
+		WHERE id = $1::UUID AND status = $3::product_status AND deleted_at IS NULL
 		RETURNING user_id
-	`, productID).Scan(&sellerID)
+	`, productID, string(domain.StatusSoldOut), string(domain.StatusOnSale)).Scan(&sellerID)
 	if err != nil {
-		return domain.Order{}, apperror.ErrConflict.New("product is already sold out")
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Order{}, apperror.ErrConflict.New("product is already sold out")
+		}
+		return domain.Order{}, apperror.ErrInternal.Wrap(err, "failed to update product status")
 	}
 
 	var o domain.Order
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO orders (product_id, buyer_id, price, status)
-		VALUES ($1::UUID, $2, $3, 'pending')
+		VALUES ($1::UUID, $2, $3, $4::order_status)
 		RETURNING id, product_id, buyer_id, price, status::TEXT, created_at, updated_at
-	`, productID, buyerID, price).Scan(
+	`, productID, buyerID, price, string(domain.OrderStatusPending)).Scan(
 		&o.ID, &o.ProductID, &o.BuyerID, &o.Price, &o.Status, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
@@ -179,19 +182,22 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, status do
 
 	var productID string
 	err = tx.QueryRowContext(ctx, `
-		UPDATE orders SET status = $2, updated_at = NOW()
-		WHERE id = $1::UUID
+		UPDATE orders SET status = $2::order_status, updated_at = NOW()
+		WHERE id = $1::UUID AND status = $3::order_status
 		RETURNING product_id
-	`, id, string(status)).Scan(&productID)
+	`, id, string(status), string(domain.OrderStatusPending)).Scan(&productID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperror.ErrConflict.New("order status has already been updated")
+		}
 		return apperror.ErrInternal.Wrap(err, "failed to update order status")
 	}
 
 	if status == domain.OrderStatusCancelled {
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE products SET status = 'on_sale', updated_at = NOW()
-			WHERE id = $1::UUID
-		`, productID); err != nil {
+			UPDATE products SET status = $2::product_status, updated_at = NOW()
+			WHERE id = $1::UUID AND deleted_at IS NULL
+		`, productID, string(domain.StatusOnSale)); err != nil {
 			return apperror.ErrInternal.Wrap(err, "failed to revert product status")
 		}
 	}

@@ -70,8 +70,19 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 		orderBy = "p.created_at DESC"
 	}
 
+	// LIMIT/OFFSET 追加前の args を COUNT クエリ用に保存する。
+	// COUNT(*) OVER() はページ範囲外で 0 になるため別クエリで取得する（CLAUDE.md の Pagination 参照）。
+	countArgs := make([]any, len(args))
+	copy(countArgs, args)
+
 	limitArg := nextArg(f.Limit)
 	offsetArg := nextArg(f.Offset)
+
+	var total int
+	countSQL := cte + fmt.Sprintf(`SELECT COUNT(*) FROM products p WHERE %s`, whereClause)
+	if err := r.db.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count products")
+	}
 
 	sqlStr := cte + fmt.Sprintf(`
 		SELECT
@@ -90,8 +101,7 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 			),
 			pm.status::TEXT,
 			pm.glb_url,
-			p.created_at,
-			COUNT(*) OVER() AS total
+			p.created_at
 		FROM products p
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
@@ -111,7 +121,6 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 	}
 	defer rows.Close()
 
-	var total int
 	products := make([]domain.Product, 0)
 	for rows.Next() {
 		var p domain.Product
@@ -127,7 +136,6 @@ func (r *ProductRepository) List(ctx context.Context, f domain.ProductFilter) ([
 			&modelStatus,
 			&modelGLBURL,
 			&p.CreatedAt,
-			&total,
 		); err != nil {
 			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan product")
 		}

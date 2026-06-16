@@ -426,6 +426,18 @@ func (r *ProductRepository) Delete(ctx context.Context, id string, sellerID stri
 		return apperror.ErrInternal.Wrap(err, "failed to delete product images")
 	}
 
+	if _, err = tx.ExecContext(ctx, `
+		DELETE FROM likes WHERE product_id = $1::UUID
+	`, id); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete likes")
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		DELETE FROM viewing_history WHERE product_id = $1::UUID
+	`, id); err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to delete viewing history")
+	}
+
 	if err := tx.Commit(); err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to commit transaction")
 	}

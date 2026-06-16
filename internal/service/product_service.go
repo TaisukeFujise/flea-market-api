@@ -17,6 +17,7 @@ type ProductRepository interface {
 
 type ViewingHistoryRepository interface {
 	Upsert(ctx context.Context, userID, productID string) error
+	ListByUserID(ctx context.Context, userID string, f domain.ViewingHistoryFilter) ([]domain.ViewingHistory, int, error)
 }
 
 type ProductService struct {
@@ -42,6 +43,10 @@ func (s *ProductService) Update(ctx context.Context, id string, sellerID string,
 
 func (s *ProductService) Delete(ctx context.Context, id string, sellerID string) error {
 	return s.repo.Delete(ctx, id, sellerID)
+}
+
+func (s *ProductService) ListViewingHistory(ctx context.Context, userID string, f domain.ViewingHistoryFilter) ([]domain.ViewingHistory, int, error) {
+	return s.historyRepo.ListByUserID(ctx, userID, f)
 }
 
 func (s *ProductService) GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error) {

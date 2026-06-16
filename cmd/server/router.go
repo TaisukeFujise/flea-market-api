@@ -66,8 +66,8 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.PATCH("/me", userHandler.Update)
 	authed.DELETE("/me", userHandler.Delete)
 	authed.PUT("/me/avatar", userHandler.UploadAvatar)
-	authed.GET("/me/likes", notImplemented)
-	authed.GET("/me/viewing-history", notImplemented)
+	authed.GET("/me/likes", likeHandler.GetLikes)
+	authed.GET("/me/viewing-history", productHandler.GetViewingHistory)
 
 	// categories
 	public.GET("/categories", categoryHandler.GetAll)

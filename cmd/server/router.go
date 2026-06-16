@@ -101,7 +101,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 
 	// orders
 	authed.POST("/products/:id/orders", orderHandler.Create)
-	authed.GET("/orders", notImplemented)
+	authed.GET("/orders", orderHandler.GetList)
 	authed.GET("/orders/:id", notImplemented)
 	authed.PATCH("/orders/:id", notImplemented)
 	authed.POST("/orders/:id/damage-reports", notImplemented)

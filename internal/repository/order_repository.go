@@ -60,3 +60,72 @@ func (r *OrderRepository) Create(ctx context.Context, buyerID, productID string,
 
 	return o, nil
 }
+
+func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error) {
+	var whereClause string
+	switch {
+	case f.Role != nil && *f.Role == domain.OrderRoleBuyer:
+		whereClause = "o.buyer_id = $1"
+	case f.Role != nil && *f.Role == domain.OrderRoleSeller:
+		whereClause = "p.user_id = $1"
+	default:
+		whereClause = "(o.buyer_id = $1 OR p.user_id = $1)"
+	}
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM orders o
+		JOIN products p ON p.id = o.product_id
+		WHERE `+whereClause, userID).Scan(&total); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count orders")
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			o.id,
+			p.id,
+			p.title,
+			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
+			o.price,
+			o.status::TEXT,
+			CASE WHEN o.buyer_id = $1 THEN 'buyer' ELSE 'seller' END,
+			o.created_at
+		FROM orders o
+		JOIN products p ON p.id = o.product_id
+		WHERE `+whereClause+`
+		ORDER BY o.created_at DESC
+		LIMIT $2 OFFSET $3
+	`, userID, f.Limit, f.Offset)
+	if err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to list orders")
+	}
+	defer rows.Close()
+
+	items := make([]domain.OrderListItem, 0)
+	for rows.Next() {
+		var item domain.OrderListItem
+		var thumbnailURL sql.NullString
+		if err := rows.Scan(
+			&item.ID,
+			&item.Product.ID,
+			&item.Product.Title,
+			&thumbnailURL,
+			&item.Price,
+			&item.Status,
+			&item.Role,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan order")
+		}
+		if thumbnailURL.Valid {
+			item.Product.ThumbnailURL = &thumbnailURL.String
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to iterate orders")
+	}
+
+	return items, total, nil
+}

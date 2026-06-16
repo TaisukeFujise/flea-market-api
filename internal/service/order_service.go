@@ -13,6 +13,7 @@ type OrderProductRepository interface {
 
 type OrderRepository interface {
 	Create(ctx context.Context, buyerID, productID string, price int) (domain.Order, error)
+	ListByUserID(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)
 }
 
 type OrderService struct {
@@ -22,6 +23,10 @@ type OrderService struct {
 
 func NewOrderService(o OrderRepository, p OrderProductRepository) *OrderService {
 	return &OrderService{orderRepo: o, productRepo: p}
+}
+
+func (s *OrderService) ListOrders(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error) {
+	return s.orderRepo.ListByUserID(ctx, userID, f)
 }
 
 func (s *OrderService) BuyProduct(ctx context.Context, productID, buyerID string) (domain.Order, error) {

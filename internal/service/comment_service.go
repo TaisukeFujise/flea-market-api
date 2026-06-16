@@ -3,13 +3,15 @@ package service
 import (
 	"context"
 
+	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
 )
 
 type CommentRepository interface {
 	ListByProductID(ctx context.Context, productID string, f domain.CommentFilter) ([]domain.Comment, int, error)
 	Create(ctx context.Context, input domain.CommentCreate) (domain.Comment, error)
-	Delete(ctx context.Context, id string, uid string) error
+	GetOwnerID(ctx context.Context, id string) (string, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type CommentService struct {
@@ -29,5 +31,12 @@ func (s *CommentService) Create(ctx context.Context, input domain.CommentCreate)
 }
 
 func (s *CommentService) Delete(ctx context.Context, id string, uid string) error {
-	return s.repo.Delete(ctx, id, uid)
+	ownerID, err := s.repo.GetOwnerID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if ownerID != uid {
+		return apperror.ErrForbidden.New("forbidden")
+	}
+	return s.repo.Delete(ctx, id)
 }

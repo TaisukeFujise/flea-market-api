@@ -17,6 +17,7 @@ type ProductService interface {
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
 	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 	Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error
+	Delete(ctx context.Context, id string, sellerID string) error
 }
 
 type ProductHandler struct {
@@ -267,6 +268,21 @@ func (h *ProductHandler) Create(c *echo.Context) error {
 	return c.JSON(http.StatusCreated, productCreateResponse{
 		ID: product.ID,
 	})
+}
+
+func (h *ProductHandler) Delete(c *echo.Context) error {
+	id := c.Param("id")
+
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
+
+	if err := h.service.Delete(c.Request().Context(), id, uid); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 type productUpdateRequest struct {

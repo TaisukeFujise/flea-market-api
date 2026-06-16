@@ -18,14 +18,14 @@
 | GET | [`/api/products/:id`](#get-apiproductsid) | 不要 | 商品詳細 |
 | PATCH | [`/api/products/:id`](#patch-apiproductsid) | 必要（出品者のみ） | 商品情報更新 |
 | DELETE | [`/api/products/:id`](#delete-apiproductsid) | 必要（出品者のみ） | 商品削除 |
-| GET | [`/api/products/:id/damages`](#get-apiproductsiddamages) | 不要 | 傷情報一覧 |
 | GET | [`/api/products/:id/comments`](#get-apiproductsidcomments) | 不要 | コメント一覧 |
 | POST | [`/api/products/:id/comments`](#post-apiproductsidcomments) | 必要 | コメント投稿 |
 | DELETE | [`/api/comments/:id`](#delete-apicommentsid) | 必要（投稿者のみ） | コメント削除 |
 | POST | [`/api/products/:id/likes`](#post-apiproductsidlikes) | 必要 | いいね |
 | DELETE | [`/api/products/:id/likes`](#delete-apiproductsidlikes) | 必要 | いいね解除 |
-| POST | [`/api/products/:id/orders`](#post-apiproductsidorders) | 必要（自分の商品は不可） | 商品購入 |
+| GET | [`/api/products/:id/damages`](#get-apiproductsiddamages) | 不要 | 傷情報一覧 |
 | PATCH | [`/api/damages/:id`](#patch-apidamagesid) | 必要 | 傷3D座標更新（3Dフェーズ） |
+| POST | [`/api/products/:id/orders`](#post-apiproductsidorders) | 必要（自分の商品は不可） | 商品購入 |
 | GET | [`/api/orders`](#get-apiorders) | 必要 | 注文一覧 |
 | GET | [`/api/orders/:id`](#get-apiordersid) | 必要（関係者のみ） | 注文詳細 |
 | PATCH | [`/api/orders/:id`](#patch-apiordersid) | 必要（関係者のみ・操作内容による） | 注文ステータス更新 |

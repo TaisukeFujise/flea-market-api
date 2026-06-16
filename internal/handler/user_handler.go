@@ -134,6 +134,9 @@ func (u *UserHandler) UploadAvatar(c *echo.Context) error {
 	if err != nil {
 		return apperror.ErrValidation.Wrap(err, "avatar image is required")
 	}
+	if fh.Size == 0 {
+		return apperror.ErrValidation.New("avatar image is empty")
+	}
 	if fh.Size > maxImageSize {
 		return apperror.ErrValidation.New("avatar image exceeds 10MB limit")
 	}

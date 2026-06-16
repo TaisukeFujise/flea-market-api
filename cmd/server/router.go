@@ -51,6 +51,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	orderService := service.NewOrderService(orderRepo, productRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
+	damageReportRepo := repository.NewDamageReportRepository(db)
+	damageReportService := service.NewDamageReportService(damageReportRepo, orderRepo)
+	damageReportHandler := handler.NewDamageReportHandler(damageReportService)
+
 	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
 	commentHandler := handler.NewCommentHandler(commentService)
@@ -104,7 +108,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.GET("/orders", orderHandler.GetList)
 	authed.GET("/orders/:id", orderHandler.GetByID)
 	authed.PATCH("/orders/:id", orderHandler.UpdateStatus)
-	authed.POST("/orders/:id/damage-reports", notImplemented)
+	authed.POST("/orders/:id/damage-reports", damageReportHandler.Create)
 
 	// message rooms
 	authed.GET("/message-rooms/:id/messages", notImplemented)

@@ -149,7 +149,7 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.Order
 			mr.id,
 			o.created_at, o.updated_at
 		FROM orders o
-		JOIN products p ON p.id = o.product_id
+		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
 		LEFT JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
 		WHERE o.id = $1::UUID
 	`, id).Scan(

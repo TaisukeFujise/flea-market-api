@@ -7,21 +7,17 @@ import (
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
 )
 
-type DamageReportOrderRepository interface {
-	FindByID(ctx context.Context, id string) (domain.OrderDetail, error)
-}
-
 type DamageReportRepository interface {
 	Create(ctx context.Context, input domain.DamageReportCreate, uid string) error
 	ValidateImageForProduct(ctx context.Context, imageID, productID string) error
 }
 
 type DamageReportService struct {
-	orderRepo  DamageReportOrderRepository
+	orderRepo  OrderFinder
 	reportRepo DamageReportRepository
 }
 
-func NewDamageReportService(r DamageReportRepository, o DamageReportOrderRepository) *DamageReportService {
+func NewDamageReportService(r DamageReportRepository, o OrderFinder) *DamageReportService {
 	return &DamageReportService{reportRepo: r, orderRepo: o}
 }
 

@@ -11,6 +11,10 @@ type OrderProductRepository interface {
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
 }
 
+type OrderFinder interface {
+	FindByID(ctx context.Context, id string) (domain.OrderDetail, error)
+}
+
 type OrderRepository interface {
 	Create(ctx context.Context, buyerID, productID string, price int) (domain.Order, error)
 	ListByUserID(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)

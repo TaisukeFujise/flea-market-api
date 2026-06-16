@@ -171,7 +171,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			u.id,
 			u.display_name,
 			u.avatar_url,
-			` + ratingsSelectSQL + `,
+			`+ratingsSelectSQL+`,
 			pm.status::TEXT,
 			pm.glb_url,
 			p.created_at,
@@ -179,7 +179,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 			%s
 		FROM products p
 		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
-		` + ratingsJoinSQL + `
+		`+ratingsJoinSQL+`
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
 			FROM product_models
@@ -251,65 +251,6 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string, uid *string)
 	return p, nil
 }
 
-func (r *ProductRepository) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
-	}
-	defer tx.Rollback()
-
-	var condition domain.ProductCondition
-	var conditionNote sql.NullString
-	err = tx.QueryRowContext(ctx, `
-		SELECT dds.condition::TEXT, dds.condition_note
-		FROM product_images pi
-		JOIN damage_detection_summaries dds ON dds.id = pi.summary_id
-		WHERE pi.id = $1 AND pi.deleted_at IS NULL
-	`, input.ImageIDs[0]).Scan(&condition, &conditionNote)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Product{}, apperror.ErrNotFound.New("image not found")
-		}
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get damage detection summary")
-	}
-
-	var p domain.Product
-	var condNote *string
-	if conditionNote.Valid {
-		condNote = &conditionNote.String
-	}
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
-		RETURNING id, status::TEXT, created_at
-	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), condNote).
-		Scan(&p.ID, &p.Status, &p.CreatedAt)
-	if err != nil {
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
-	}
-
-	result, err := tx.ExecContext(ctx, `
-		UPDATE product_images SET product_id = $1
-		WHERE id = ANY($2) AND deleted_at IS NULL
-	`, p.ID, pq.Array(input.ImageIDs))
-	if err != nil {
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to update product images")
-	}
-	updated, err := result.RowsAffected()
-	if err != nil {
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get rows affected")
-	}
-	if int(updated) != len(input.ImageIDs) {
-		return domain.Product{}, apperror.ErrNotFound.New("one or more image_ids not found")
-	}
-
-	if err := tx.Commit(); err != nil {
-		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to commit transaction")
-	}
-
-	return p, nil
-}
-
 func (r *ProductRepository) getImagesByProductID(ctx context.Context, productID string) ([]domain.ProductImage, error) {
 	sqlStr := `
 		SELECT id, url, angle::TEXT
@@ -335,4 +276,69 @@ func (r *ProductRepository) getImagesByProductID(ctx context.Context, productID 
 		return nil, apperror.ErrInternal.Wrap(err, "failed to iterate product images")
 	}
 	return images, nil
+}
+
+func (r *ProductRepository) Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.Rollback()
+
+	var summaryID sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT summary_id FROM product_images
+		WHERE id = $1 AND deleted_at IS NULL
+	`, input.ImageIDs[0]).Scan(&summaryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Product{}, apperror.ErrNotFound.New("image not found")
+		}
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get product image")
+	}
+	if !summaryID.Valid {
+		return domain.Product{}, apperror.ErrBadRequest.New("damage detection not completed")
+	}
+
+	var condition domain.ProductCondition
+	var conditionNote string
+	err = tx.QueryRowContext(ctx, `
+		SELECT condition::TEXT, condition_note FROM damage_detection_summaries
+		WHERE id = $1
+	`, summaryID.String).Scan(&condition, &conditionNote)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get damage detection summary")
+	}
+
+	var p domain.Product
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
+		RETURNING id, status::TEXT, created_at
+	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), conditionNote).
+		Scan(&p.ID, &p.Status, &p.CreatedAt)
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE product_images SET product_id = $1
+		WHERE id = ANY($2) AND deleted_at IS NULL
+	`, p.ID, pq.Array(input.ImageIDs))
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to update product images")
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if int(updated) != len(input.ImageIDs) {
+		return domain.Product{}, apperror.ErrNotFound.New("one or more image_ids not found")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to commit transaction")
+	}
+
+	return p, nil
 }

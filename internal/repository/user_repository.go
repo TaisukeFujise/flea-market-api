@@ -99,6 +99,21 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 	return user, nil
 }
 
+func (r *UserRepository) UpdateAvatar(ctx context.Context, id string, avatarURL string) error {
+	const sqlStr = `
+		UPDATE users SET avatar_url = $2, updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	result, err := r.db.ExecContext(ctx, sqlStr, id, avatarURL)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update avatar url")
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return apperror.ErrNotFound.New("user not found")
+	}
+	return nil
+}
+
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	const sqlStr = `
 		UPDATE users SET deleted_at = NOW()

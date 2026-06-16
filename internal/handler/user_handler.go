@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -15,6 +17,7 @@ type UserService interface {
 	Update(ctx context.Context, id string, userUpdate domain.UserUpdate) error
 	Get(ctx context.Context, id string) (domain.User, error)
 	Delete(ctx context.Context, id string) error
+	UploadAvatar(ctx context.Context, id string, r io.Reader, contentType string) error
 }
 
 type UserHandler struct {
@@ -120,6 +123,44 @@ func (u *UserHandler) Get(c *echo.Context) error {
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	})
+}
+
+func (u *UserHandler) UploadAvatar(c *echo.Context) error {
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	fh, err := c.FormFile("avatar")
+	if err != nil {
+		return apperror.ErrValidation.Wrap(err, "avatar image is required")
+	}
+	if fh.Size > maxImageSize {
+		return apperror.ErrValidation.New("avatar image exceeds 10MB limit")
+	}
+
+	f, err := fh.Open()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to open avatar image")
+	}
+	defer f.Close()
+
+	buf := make([]byte, 512)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return apperror.ErrInternal.Wrap(err, "failed to read avatar image")
+	}
+	ct := http.DetectContentType(buf[:n])
+	if ct != "image/jpeg" && ct != "image/png" {
+		return apperror.ErrValidation.New("avatar image must be JPEG or PNG")
+	}
+
+	ctx := c.Request().Context()
+	r := io.MultiReader(bytes.NewReader(buf[:n]), f)
+	if err := u.service.UploadAvatar(ctx, uid, r, ct); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (u *UserHandler) Delete(c *echo.Context) error {

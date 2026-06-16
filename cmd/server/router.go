@@ -47,6 +47,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	productService := service.NewProductService(productRepo, viewingHistoryRepo)
 	productHandler := handler.NewProductHandler(productService)
 
+	commentRepo := repository.NewCommentRepository(db)
+	commentService := service.NewCommentService(commentRepo)
+	commentHandler := handler.NewCommentHandler(commentService)
+
 	api := e.Group("/api")
 	public := api.Group("")
 	authed := api.Group("")
@@ -79,7 +83,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.PATCH("/damages/:id", notImplemented)
 
 	// comments
-	public.GET("/products/:id/comments", notImplemented)
+	public.GET("/products/:id/comments", commentHandler.GetList)
 	authed.POST("/products/:id/comments", notImplemented)
 	authed.DELETE("/comments/:id", notImplemented)
 

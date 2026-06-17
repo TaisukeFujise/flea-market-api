@@ -144,7 +144,7 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 }
 
 func (s *ImageService) runDetection(summaryID, userID string, inputs []DetectorInput) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	result, err := s.detectionClient.Detect(ctx, inputs)

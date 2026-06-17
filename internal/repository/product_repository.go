@@ -392,6 +392,16 @@ func (r *ProductRepository) Update(ctx context.Context, id string, sellerID stri
 	return nil
 }
 
+func (r *ProductRepository) Exists(ctx context.Context, id string) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM products WHERE id = $1::UUID AND deleted_at IS NULL)
+	`, id).Scan(&exists); err != nil {
+		return false, apperror.ErrInternal.Wrap(err, "failed to check product existence")
+	}
+	return exists, nil
+}
+
 func (r *ProductRepository) Delete(ctx context.Context, id string, sellerID string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

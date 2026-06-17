@@ -48,10 +48,10 @@ func (r *DamageRepository) ListByProductID(ctx context.Context, productID string
 		       d.bbox_x1, d.bbox_y1, d.bbox_x2, d.bbox_y2,
 		       d.description, d.model_x, d.model_y, d.model_z
 		FROM damages d
-		JOIN product_images pi ON d.image_id = pi.id
+		LEFT JOIN product_images pi ON d.image_id = pi.id AND pi.deleted_at IS NULL
 		WHERE pi.product_id = $1
 		  AND d.deleted_at IS NULL
-		  AND pi.deleted_at IS NULL
+		ORDER BY d.id
 	`, productID)
 	if err != nil {
 		return nil, apperror.ErrInternal.Wrap(err, "failed to query damages")

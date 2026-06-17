@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 )
 
@@ -40,6 +42,9 @@ type listDamagesResponse struct {
 
 func (h *DamageHandler) ListByProductID(c *echo.Context) error {
 	productID := c.Param("id")
+	if _, err := uuid.Parse(productID); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
 
 	damages, err := h.service.ListByProductID(c.Request().Context(), productID)
 	if err != nil {

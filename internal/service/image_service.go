@@ -29,7 +29,6 @@ type DamageDetectionSummaryRepository interface {
 
 type DamageRepository interface {
 	CreateAll(ctx context.Context, damages []domain.DamageCreate) error
-	ListByProductID(ctx context.Context, productID string) ([]domain.Damage, error)
 }
 
 type DetectorInput struct {

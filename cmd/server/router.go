@@ -56,7 +56,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	orderService := service.NewOrderService(orderRepo, productRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
-	damageService := service.NewDamageService(damageRepo)
+	damageService := service.NewDamageService(damageRepo, productRepo)
 	damageHandler := handler.NewDamageHandler(damageService)
 
 	damageReportRepo := repository.NewDamageReportRepository(db)

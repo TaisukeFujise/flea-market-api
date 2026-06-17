@@ -1,7 +1,7 @@
 # 傷検出仕様書
 
 ## 1. 方針
-- 傷検出エンジン：Gemini Vision API（structured output）に一本化。YOLOv8 は使用しない
+- 傷検出エンジン：Vertex AI Gemini（structured output）に一本化。YOLOv8 は使用しない
 - 画像解像度：Cloud Storage 保存前に 1024×1024 にリサイズして統一（座標変換を安定させるため）
 - 3Dフェーズは Week6-7 で追加。2Dフェーズと独立して動作し、スキーマ変更なしで対応可能
 
@@ -15,8 +15,8 @@
     → 1024×1024 にリサイズして Cloud Storage に保存
     → product_images INSERT（angle付き）
 
-[2] 傷検出 + 状態サマリー生成（Go → Gemini Vision）
-    product_images の画像5枚 + プロンプトを Gemini に送信
+[2] 傷検出 + 状態サマリー生成（Go → Vertex AI Gemini）
+    product_images の画像5枚 + プロンプトを Vertex AI Gemini に送信
     1回の API 呼び出しで傷リスト・condition・condition_note をまとめて取得
 
     ※ pgvector フィードバックがある場合

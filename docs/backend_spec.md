@@ -38,9 +38,8 @@ authed.Use(authMW.AuthRequired)
 | `DATABASE_URL` | PostgreSQL 接続文字列 |
 | `FRONTEND_ORIGINS` | CORS 許可オリジン・カンマ区切りで複数指定可。未設定時は全拒否。本番は `https://flea-market-web.vercel.app` のみ、ローカルは Vercel URL + `http://localhost:5173` をカンマ区切りで指定 |
 | `FIREBASE_PROJECT_ID` | Firebase プロジェクト ID |
-| `GEMINI_API_KEY` | Gemini API キー（Secret Manager 経由） |
-| `VERTEX_AI_PROJECT_ID` | Vertex AI プロジェクト ID |
-| `VERTEX_AI_LOCATION` | Vertex AI リージョン |
+| `GOOGLE_CLOUD_PROJECT` | GCP プロジェクト ID（Vertex AI 用） |
+| `VERTEX_AI_LOCATION` | Vertex AI リージョン（例: `us-central1`） |
 | `MESHY_API_KEY` | Meshy API キー（Secret Manager 経由） |
 | `MESHY_WEBHOOK_SECRET` | Meshy Webhook 署名検証キー（Secret Manager 経由） |
 | `GCS_BUCKET_NAME` | Cloud Storage バケット ID |

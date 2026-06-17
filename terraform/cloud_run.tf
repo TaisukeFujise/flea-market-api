@@ -83,16 +83,6 @@ resource "google_cloud_run_v2_service" "main" {
       }
 
       env {
-        name = "GEMINI_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = "GEMINI_API_KEY"
-            version = "latest"
-          }
-        }
-      }
-
-      env {
         name = "MESHY_API_KEY"
         value_source {
           secret_key_ref {

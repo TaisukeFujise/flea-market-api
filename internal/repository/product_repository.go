@@ -298,10 +298,9 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 
 	var summaryID sql.NullString
 	err = tx.QueryRowContext(ctx, `
-		SELECT pi.summary_id FROM product_images pi
-		JOIN damage_detection_summaries dds ON dds.id = pi.summary_id
-		WHERE pi.id = $1 AND pi.deleted_at IS NULL AND dds.user_id = $2
-	`, input.ImageIDs[0], sellerID).Scan(&summaryID)
+		SELECT summary_id FROM product_images
+		WHERE id = $1 AND deleted_at IS NULL
+	`, input.ImageIDs[0]).Scan(&summaryID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Product{}, apperror.ErrNotFound.New("image not found")
@@ -313,7 +312,7 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 	}
 
 	var condition domain.ProductCondition
-	var conditionNote string
+	var conditionNote sql.NullString
 	err = tx.QueryRowContext(ctx, `
 		SELECT condition::TEXT, condition_note FROM damage_detection_summaries
 		WHERE id = $1 AND status = $2
@@ -330,7 +329,7 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 		INSERT INTO products (user_id, category_id, title, description, price, condition, condition_note, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, 'on_sale')
 		RETURNING id
-	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), conditionNote).
+	`, sellerID, input.CategoryID, input.Title, input.Description, input.Price, string(condition), conditionNote.String).
 		Scan(&p.ID)
 	if err != nil {
 		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to insert product")
@@ -338,8 +337,12 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 
 	result, err := tx.ExecContext(ctx, `
 		UPDATE product_images SET product_id = $1
-		WHERE id = ANY($2) AND deleted_at IS NULL
-	`, p.ID, pq.Array(input.ImageIDs))
+		WHERE id = ANY($2)
+		  AND deleted_at IS NULL
+		  AND summary_id IN (
+		    SELECT id FROM damage_detection_summaries WHERE user_id = $3
+		  )
+	`, p.ID, pq.Array(input.ImageIDs), sellerID)
 	if err != nil {
 		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to update product images")
 	}

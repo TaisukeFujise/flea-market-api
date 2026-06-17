@@ -10,15 +10,20 @@ import (
 type MessageRepository interface {
 	FindRoomByID(ctx context.Context, id string) (domain.MessageRoom, error)
 	ListByRoomID(ctx context.Context, roomID string, f domain.MessageFilter) ([]domain.Message, int, error)
-	Create(ctx context.Context, input domain.MessageCreate) (domain.Message, error)
+	Create(ctx context.Context, input domain.MessageCreate) error
+}
+
+type MessageNotifier interface {
+	NotifyNewMessage(userID string, roomID string)
 }
 
 type MessageService struct {
-	repo MessageRepository
+	repo     MessageRepository
+	notifier MessageNotifier
 }
 
-func NewMessageService(r MessageRepository) *MessageService {
-	return &MessageService{repo: r}
+func NewMessageService(r MessageRepository, n MessageNotifier) *MessageService {
+	return &MessageService{repo: r, notifier: n}
 }
 
 func (s *MessageService) ListByRoomID(ctx context.Context, roomID, uid string, f domain.MessageFilter) ([]domain.Message, int, error) {
@@ -32,17 +37,27 @@ func (s *MessageService) ListByRoomID(ctx context.Context, roomID, uid string, f
 	return s.repo.ListByRoomID(ctx, roomID, f)
 }
 
-func (s *MessageService) Create(ctx context.Context, roomID, uid, content string) (domain.Message, error) {
+func (s *MessageService) Create(ctx context.Context, roomID, uid, content string) error {
 	room, err := s.repo.FindRoomByID(ctx, roomID)
 	if err != nil {
-		return domain.Message{}, err
+		return err
 	}
 	if room.BuyerID != uid && room.SellerID != uid {
-		return domain.Message{}, apperror.ErrForbidden.New("not a participant")
+		return apperror.ErrForbidden.New("not a participant")
 	}
-	return s.repo.Create(ctx, domain.MessageCreate{
+	if err = s.repo.Create(ctx, domain.MessageCreate{
 		RoomID:   roomID,
 		SenderID: uid,
 		Content:  content,
-	})
+	}); err != nil {
+		return err
+	}
+
+	recipientID := room.SellerID
+	if uid == room.SellerID {
+		recipientID = room.BuyerID
+	}
+	s.notifier.NotifyNewMessage(recipientID, roomID)
+
+	return nil
 }

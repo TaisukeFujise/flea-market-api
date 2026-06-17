@@ -71,25 +71,18 @@ func (r *MessageRepository) ListByRoomID(ctx context.Context, roomID string, f d
 	return messages, total, nil
 }
 
-func (r *MessageRepository) Create(ctx context.Context, input domain.MessageCreate) (domain.Message, error) {
-	var m domain.Message
-	err := r.db.QueryRowContext(ctx, `
-		WITH inserted AS (
-			INSERT INTO messages (room_id, sender_id, content)
-			SELECT $1::UUID, $2, $3
-			FROM message_rooms
-			WHERE id = $1::UUID AND deleted_at IS NULL AND (buyer_id = $2 OR seller_id = $2)
-			RETURNING id, room_id, sender_id, content, created_at
-		)
-		SELECT i.id, i.room_id, u.id, u.display_name, u.avatar_url, i.content, i.created_at
-		FROM inserted i
-		JOIN users u ON u.id = i.sender_id AND u.deleted_at IS NULL
-	`, input.RoomID, input.SenderID, input.Content).Scan(&m.ID, &m.RoomID, &m.Sender.ID, &m.Sender.DisplayName, &m.Sender.AvatarURL, &m.Content, &m.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Message{}, apperror.ErrNotFound.New("message room not found")
-	}
+func (r *MessageRepository) Create(ctx context.Context, input domain.MessageCreate) error {
+	result, err := r.db.ExecContext(ctx, `
+		INSERT INTO messages (room_id, sender_id, content)
+		SELECT $1::UUID, $2, $3
+		FROM message_rooms
+		WHERE id = $1::UUID AND deleted_at IS NULL AND (buyer_id = $2 OR seller_id = $2)
+	`, input.RoomID, input.SenderID, input.Content)
 	if err != nil {
-		return domain.Message{}, apperror.ErrInternal.Wrap(err, "failed to insert message")
+		return apperror.ErrInternal.Wrap(err, "failed to insert message")
 	}
-	return m, nil
+	if n, _ := result.RowsAffected(); n == 0 {
+		return apperror.ErrNotFound.New("message room not found")
+	}
+	return nil
 }

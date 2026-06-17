@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	cloud.google.com/go/storage v1.62.1
 	firebase.google.com/go/v4 v4.20.0
+	github.com/coder/websocket v1.8.15
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v5 v5.1.1

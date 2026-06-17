@@ -12,7 +12,7 @@ import (
 	"google.golang.org/genai"
 )
 
-const geminiModelName = "gemini-2.0-flash-001"
+const geminiModelName = "gemini-2.5-flash"
 
 type VertexAIClient struct {
 	client    *genai.Client

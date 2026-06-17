@@ -59,8 +59,7 @@ func (u *UserHandler) Register(c *echo.Context) error {
 		DisplayName: req.DisplayName,
 		AvatarURL:   req.AvatarURL,
 	}
-	ctx := c.Request().Context()
-	if err := u.service.Register(ctx, user); err != nil {
+	if err := u.service.Register(c.Request().Context(), user); err != nil {
 		return err
 	}
 	return c.NoContent(http.StatusNoContent)
@@ -76,7 +75,6 @@ func (u *UserHandler) Update(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx := c.Request().Context()
 	if err := c.Bind(&req); err != nil {
 		return err
 	}
@@ -87,7 +85,7 @@ func (u *UserHandler) Update(c *echo.Context) error {
 	userUpdate := domain.UserUpdate{
 		DisplayName: req.DisplayName,
 	}
-	if err := u.service.Update(ctx, id, userUpdate); err != nil {
+	if err := u.service.Update(c.Request().Context(), id, userUpdate); err != nil {
 		return err
 	}
 	return c.NoContent(http.StatusNoContent)
@@ -108,8 +106,7 @@ func (u *UserHandler) Get(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx := c.Request().Context()
-	user, err := u.service.Get(ctx, id)
+	user, err := u.service.Get(c.Request().Context(), id)
 	if err != nil {
 		return err
 	}
@@ -155,8 +152,7 @@ func (u *UserHandler) UploadAvatar(c *echo.Context) error {
 		return apperror.ErrValidation.New("avatar image must be JPEG or PNG")
 	}
 
-	ctx := c.Request().Context()
-	if err := u.service.UploadAvatar(ctx, uid, r, ct); err != nil {
+	if err := u.service.UploadAvatar(c.Request().Context(), uid, r, ct); err != nil {
 		return err
 	}
 	return c.NoContent(http.StatusNoContent)
@@ -167,8 +163,7 @@ func (u *UserHandler) Delete(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx := c.Request().Context()
-	if err := u.service.Delete(ctx, id); err != nil {
+	if err := u.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
 	return c.NoContent(http.StatusNoContent)

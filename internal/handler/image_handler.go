@@ -71,8 +71,7 @@ func (h *ImageHandler) Upload(c *echo.Context) error {
 		})
 	}
 
-	ctx := c.Request().Context()
-	ids, err := h.service.UploadImages(ctx, uid, uploads)
+	ids, err := h.service.UploadImages(c.Request().Context(), uid, uploads)
 	if err != nil {
 		return err
 	}

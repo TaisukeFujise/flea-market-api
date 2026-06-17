@@ -56,6 +56,9 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	orderService := service.NewOrderService(orderRepo, productRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
+	damageService := service.NewDamageService(damageRepo)
+	damageHandler := handler.NewDamageHandler(damageService)
+
 	damageReportRepo := repository.NewDamageReportRepository(db)
 	damageReportService := service.NewDamageReportService(damageReportRepo, orderRepo)
 	damageReportHandler := handler.NewDamageReportHandler(damageReportService)
@@ -104,9 +107,9 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	// TODO images 　傷検出AI呼び出しは置き換えの必要
 	authed.POST("/images", imageHandler.Upload)
 
-	// TODO damages
-	public.GET("/products/:id/damages", notImplemented)
-	authed.PATCH("/damages/:id", notImplemented)
+	// damages
+	public.GET("/products/:id/damages", damageHandler.ListByProductID)
+	authed.PATCH("/damages/:id", notImplemented) // 3Dフェーズで実装
 
 	// comments
 	public.GET("/products/:id/comments", commentHandler.GetList)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/TaisukeFujise/flea-market-api/internal/service"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -90,6 +91,52 @@ func (h *Hub) NotifyNewMessage(userID string, roomID string) {
 		payload: wsEvent{
 			Type:    EventNewMessage,
 			Payload: newMessagePayload{RoomID: roomID},
+		},
+	}:
+	default:
+	}
+}
+
+type damageDetectionCompletePayload struct {
+	Condition     string              `json:"condition"`
+	ConditionNote string              `json:"condition_note"`
+	Damages       []damageItemPayload `json:"damages"`
+}
+
+type damageItemPayload struct {
+	ImageID     string  `json:"image_id"`
+	DamageType  string  `json:"damage_type"`
+	BboxX1      *int    `json:"bbox_x1"`
+	BboxY1      *int    `json:"bbox_y1"`
+	BboxX2      *int    `json:"bbox_x2"`
+	BboxY2      *int    `json:"bbox_y2"`
+	Description *string `json:"description"`
+}
+
+// NotifyDamageDetectionComplete implements service.DetectionNotifier.
+func (h *Hub) NotifyDamageDetectionComplete(userID string, result service.DamageDetectionResult) {
+	damages := make([]damageItemPayload, len(result.Damages))
+	for i, d := range result.Damages {
+		damages[i] = damageItemPayload{
+			ImageID:     d.ImageID,
+			DamageType:  string(d.DamageType),
+			BboxX1:      d.BboxX1,
+			BboxY1:      d.BboxY1,
+			BboxX2:      d.BboxX2,
+			BboxY2:      d.BboxY2,
+			Description: d.Description,
+		}
+	}
+	select {
+	case h.send <- sendRequest{
+		userID: userID,
+		payload: wsEvent{
+			Type: EventDamageDetectionComplete,
+			Payload: damageDetectionCompletePayload{
+				Condition:     string(result.Condition),
+				ConditionNote: result.ConditionNote,
+				Damages:       damages,
+			},
 		},
 	}:
 	default:

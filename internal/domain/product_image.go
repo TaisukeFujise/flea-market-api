@@ -24,7 +24,8 @@ type ProductImage struct {
 type DamageDetectionSummary struct {
 	ID            string
 	UserID        string
-	Condition     ProductCondition
-	ConditionNote string
+	Status        DetectionStatus
+	Condition     *ProductCondition
+	ConditionNote *string
 	CreatedAt     time.Time
 }

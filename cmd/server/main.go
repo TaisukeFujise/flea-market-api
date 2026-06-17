@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TaisukeFujise/flea-market-api/internal/infra/ai"
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/fbapp"
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/gcs"
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/postgres"
@@ -33,7 +34,14 @@ func main() {
 	}
 	defer gcsClient.Close()
 
-	e := NewRouter(db, authClient, gcsClient)
+	vertexAI, err := ai.NewVertexAIClient(context.Background())
+	if err != nil {
+		slog.Error("failed to initialize vertex ai client", "error", err)
+		os.Exit(1)
+	}
+	defer vertexAI.Close()
+
+	e := NewRouter(db, authClient, gcsClient, vertexAI)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

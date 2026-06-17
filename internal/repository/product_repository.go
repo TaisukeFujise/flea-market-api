@@ -316,9 +316,12 @@ func (r *ProductRepository) Create(ctx context.Context, sellerID string, input d
 	var conditionNote string
 	err = tx.QueryRowContext(ctx, `
 		SELECT condition::TEXT, condition_note FROM damage_detection_summaries
-		WHERE id = $1
-	`, summaryID.String).Scan(&condition, &conditionNote)
+		WHERE id = $1 AND status = $2
+	`, summaryID.String, string(domain.DetectionStatusDone)).Scan(&condition, &conditionNote)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Product{}, apperror.ErrBadRequest.New("damage detection not completed")
+		}
 		return domain.Product{}, apperror.ErrInternal.Wrap(err, "failed to get damage detection summary")
 	}
 

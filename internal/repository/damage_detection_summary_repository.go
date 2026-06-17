@@ -17,17 +17,25 @@ func NewDamageDetectionSummaryRepository(db *sql.DB) *DamageDetectionSummaryRepo
 }
 
 func (r *DamageDetectionSummaryRepository) Create(ctx context.Context, summary domain.DamageDetectionSummary) (domain.DamageDetectionSummary, error) {
-	const sqlStr = `
-		INSERT INTO damage_detection_summaries (user_id, condition, condition_note)
-		VALUES ($1, $2, $3)
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO damage_detection_summaries (user_id, status)
+		VALUES ($1, $2)
 		RETURNING id, created_at
-	`
-	err := r.db.QueryRowContext(ctx, sqlStr, summary.UserID, summary.Condition, summary.ConditionNote).Scan(
-		&summary.ID,
-		&summary.CreatedAt,
-	)
+	`, summary.UserID, string(summary.Status)).Scan(&summary.ID, &summary.CreatedAt)
 	if err != nil {
 		return domain.DamageDetectionSummary{}, apperror.ErrInternal.Wrap(err, "failed to insert damage detection summary")
 	}
 	return summary, nil
+}
+
+func (r *DamageDetectionSummaryRepository) Update(ctx context.Context, id string, condition domain.ProductCondition, conditionNote string, status domain.DetectionStatus) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE damage_detection_summaries
+		SET condition = $2, condition_note = $3, status = $4
+		WHERE id = $1
+	`, id, string(condition), conditionNote, string(status))
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update damage detection summary")
+	}
+	return nil
 }

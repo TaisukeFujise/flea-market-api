@@ -72,6 +72,10 @@ internal/
 
 2クエリ間でデータが変化し `total` とリスト件数がわずかにズレる可能性があるが、ページネーション UI での許容範囲とみなす。
 
+**`total` の信頼性について:** `total` はページ数表示などの参考値として扱う。フロントエンドのページング終了判定は `total` だけに依存せず、**`items.length < limit` になったら次ページなし**と判断すること。これにより、2クエリ間の競合やリレーション先の soft delete によって `total` と実際の件数がわずかにズレても無限ループが起きない。
+
+**リレーション先の soft delete に関する JOIN 方針:** リスト取得クエリで関連テーブルを JOIN する場合は `LEFT JOIN` を使い、`COALESCE` で代替値を返すこと。`INNER JOIN` に soft delete 条件を付けると、リレーション先が削除されたときに該当行がリストから消え `COUNT(*)` との永続的な不一致が生じる。
+
 ## Error handling
 
 `apperror.AppError` carries an `ErrCode` string and wraps the original error. Handlers never marshal `AppError` directly — `handler.ErrorHandler` (the Echo `HTTPErrorHandler`) converts it to `ErrorResponse{error: {code, message}}`. Use `ErrCode.New(msg)` or `ErrCode.Wrap(err, msg)` to create errors in service/repository layers.

@@ -16,6 +16,20 @@ const (
 	DetectionStatusFailed     DetectionStatus = "failed"
 )
 
+type Damage struct {
+	ID          string
+	ImageID     string
+	DamageType  DamageType
+	BboxX1      *int
+	BboxY1      *int
+	BboxX2      *int
+	BboxY2      *int
+	Description *string
+	ModelX      *float64
+	ModelY      *float64
+	ModelZ      *float64
+}
+
 // DamageCreate は AI 検出結果を damages テーブルに保存するための入力。
 // 画像アップロード後の非同期処理で使用する。商品作成前に実行されるため ProductID を持たない。
 type DamageCreate struct {

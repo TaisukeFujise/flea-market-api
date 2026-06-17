@@ -2,10 +2,8 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"os"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/coder/websocket"
 	"github.com/labstack/echo/v5"
@@ -13,33 +11,15 @@ import (
 
 type WsHandler struct {
 	hub *Hub
-	fb  *auth.Client
-	db  *sql.DB
 }
 
-func NewWsHandler(hub *Hub, fb *auth.Client, db *sql.DB) *WsHandler {
-	return &WsHandler{hub: hub, fb: fb, db: db}
+func NewWsHandler(hub *Hub) *WsHandler {
+	return &WsHandler{hub: hub}
 }
 
 func (h *WsHandler) Handle(c *echo.Context) error {
-	token := c.QueryParam("token")
-	if token == "" {
-		return apperror.ErrUnauthorized.New("missing token")
-	}
-
-	fbToken, err := h.fb.VerifyIDToken(c.Request().Context(), token)
-	if err != nil {
-		return apperror.ErrUnauthorized.New("invalid token")
-	}
-
-	var exists bool
-	if err = h.db.QueryRowContext(c.Request().Context(),
-		`SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)`,
-		fbToken.UID,
-	).Scan(&exists); err != nil {
-		return apperror.ErrInternal.Wrap(err, "failed to check user status")
-	}
-	if !exists {
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
 		return apperror.ErrUnauthorized.New("unauthorized")
 	}
 
@@ -57,7 +37,7 @@ func (h *WsHandler) Handle(c *echo.Context) error {
 
 	clientCtx, clientCancel := context.WithCancel(c.Request().Context())
 	client := &Client{
-		userID: fbToken.UID,
+		userID: uid,
 		conn:   conn,
 		ctx:    clientCtx,
 		cancel: clientCancel,

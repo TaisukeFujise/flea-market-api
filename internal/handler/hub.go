@@ -57,6 +57,10 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case c := <-h.register:
+			if old, ok := h.clients[c.userID]; ok {
+				old.cancel()
+				old.conn.CloseNow()
+			}
 			h.clients[c.userID] = c
 		case c := <-h.unregister:
 			if existing, ok := h.clients[c.userID]; ok && existing == c {

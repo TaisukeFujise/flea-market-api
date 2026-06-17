@@ -55,7 +55,7 @@ func (h *WsHandler) Handle(c *echo.Context) error {
 		return apperror.ErrInternal.Wrap(err, "failed to upgrade websocket")
 	}
 
-	clientCtx, clientCancel := context.WithCancel(context.Background())
+	clientCtx, clientCancel := context.WithCancel(c.Request().Context())
 	client := &Client{
 		userID: fbToken.UID,
 		conn:   conn,

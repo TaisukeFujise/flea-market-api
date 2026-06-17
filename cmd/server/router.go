@@ -59,9 +59,13 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	ratingService := service.NewRatingService(ratingRepo, orderRepo)
 	ratingHandler := handler.NewRatingHandler(ratingService)
 
+	hub := handler.NewHub()
+	go hub.Run()
+
 	messageRepo := repository.NewMessageRepository(db)
-	messageService := service.NewMessageService(messageRepo)
+	messageService := service.NewMessageService(messageRepo, hub)
 	messageHandler := handler.NewMessageHandler(messageService)
+	wsHandler := handler.NewWsHandler(hub, fb, db)
 
 	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
@@ -123,8 +127,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.GET("/message-rooms/:id/messages", messageHandler.GetList)
 	authed.POST("/message-rooms/:id/messages", messageHandler.Create)
 
-	// TODO websocket
-	e.GET("/ws", notImplemented)
+	e.GET("/ws", wsHandler.Handle)
 
 	return e
 }

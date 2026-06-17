@@ -899,17 +899,12 @@ ws://localhost:8080/ws?token=<Firebase ID Token>
 **サーバーから送信されるイベント**
 
 ```json
-// 新着メッセージ
+// 新着メッセージ通知（thin payload）
+// フロントエンドはこれを受け取り GET /api/message-rooms/:id/messages を呼んで最新メッセージを取得する
 {
   "type": "new_message",
   "payload": {
-    "room_id": "uuid",
-    "message": {
-      "id": "uuid",
-      "sender_id": "firebase_uid",
-      "content": "よろしくお願いします",
-      "created_at": "2026-06-01T00:00:00Z"
-    }
+    "room_id": "uuid"
   }
 }
 

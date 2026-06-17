@@ -13,7 +13,7 @@ import (
 
 type MessageService interface {
 	ListByRoomID(ctx context.Context, roomID, uid string, f domain.MessageFilter) ([]domain.Message, int, error)
-	Create(ctx context.Context, roomID, uid, content string) (domain.Message, error)
+	Create(ctx context.Context, roomID, uid, content string) error
 }
 
 type MessageHandler struct {
@@ -111,13 +111,9 @@ func (h *MessageHandler) Create(c *echo.Context) error {
 		return err
 	}
 
-	msg, err := h.service.Create(c.Request().Context(), roomID, uid, req.Content)
-	if err != nil {
+	if err := h.service.Create(c.Request().Context(), roomID, uid, req.Content); err != nil {
 		return err
 	}
-
-	// TODO(#12): hub.Send(receiverUID, msg) でWebSocket通知
-	_ = msg
 
 	return c.NoContent(http.StatusNoContent)
 }

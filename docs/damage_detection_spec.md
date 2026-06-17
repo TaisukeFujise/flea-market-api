@@ -9,13 +9,21 @@
 
 ## 2. 2Dフェーズ フロー（Week3-4）
 
+**操作の順序：画像アップロード → AI検出 → 商品作成**
+
+フロントは WebSocket で `damage_detection_complete` を受け取ってから `POST /api/products` を呼ぶ。
+AI 検出が走る時点では商品（products レコード）がまだ存在しないため、`damages` テーブルは `product_id` を持たず `image_id` のみで紐付ける。商品作成後は `product_images.product_id` を経由して間接的に products と繋がる。
+
 ```
 [1] ガイド付き撮影（フロント）
     5方向の画像をアップロード
     → 1024×1024 にリサイズして Cloud Storage に保存
-    → product_images INSERT（angle付き）
+    → damage_detection_summaries INSERT（status: processing）
+    → product_images INSERT（angle・summary_id付き）
+    ← image_ids を返す（商品作成にはまだ使わない）
 
-[2] 傷検出 + 状態サマリー生成（Go → Vertex AI Gemini）
+[2] 傷検出 + 状態サマリー生成（Go goroutine → Vertex AI Gemini）
+    ※ リクエストと独立した goroutine で非同期実行
     product_images の画像5枚 + プロンプトを Vertex AI Gemini に送信
     1回の API 呼び出しで傷リスト・condition・condition_note をまとめて取得
 
@@ -25,11 +33,16 @@
     → フィードバック画像3枚をプロンプトに追加（参照専用・index 5-7）
 
     Gemini レスポンス（JSON）
-    → damage_detection_summaries INSERT（condition・condition_note・user_id）
-    → UPDATE product_images SET summary_id WHERE id IN (image_ids)
     → damages INSERT（bbox座標・damage_type・description・image_id）
+    → damage_detection_summaries UPDATE（condition・condition_note・status: done）
+    → WebSocket で damage_detection_complete 通知
 
-[3] フロントに反映
+[3] 商品作成（フロントが WebSocket 通知を受け取ってから呼ぶ）
+    POST /api/products に image_ids を含めて送信
+    → damage_detection_summaries の status = 'done' を確認（未完了なら 400）
+    → condition・condition_note を summaries から取得して products に保存
+
+[4] フロントに反映
     → 2D画像上に bbox マーカー表示（bbox_x1/y1/x2/y2 をそのまま使用）
     → condition_note を商品詳細に表示
 ```

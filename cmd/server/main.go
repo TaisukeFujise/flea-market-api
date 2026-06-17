@@ -39,7 +39,6 @@ func main() {
 		slog.Error("failed to initialize vertex ai client", "error", err)
 		os.Exit(1)
 	}
-	defer vertexAI.Close()
 
 	e := NewRouter(db, authClient, gcsClient, vertexAI)
 

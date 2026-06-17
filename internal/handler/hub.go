@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/service"
@@ -140,5 +141,6 @@ func (h *Hub) NotifyDamageDetectionComplete(userID string, result service.Damage
 		},
 	}:
 	default:
+		slog.Warn("damage_detection_complete notification dropped: send channel full", "userID", userID)
 	}
 }

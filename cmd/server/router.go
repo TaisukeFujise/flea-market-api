@@ -8,6 +8,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/handler"
+	"github.com/TaisukeFujise/flea-market-api/internal/infra/ai"
 	gcsclient "github.com/TaisukeFujise/flea-market-api/internal/infra/gcs"
 	mw "github.com/TaisukeFujise/flea-market-api/internal/middleware"
 	"github.com/TaisukeFujise/flea-market-api/internal/repository"
@@ -17,7 +18,7 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 )
 
-func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
+func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.VertexAIClient) *echo.Echo {
 	e := echo.New()
 	e.Validator = &CustomValidator{validator: validator.New()}
 	e.HTTPErrorHandler = handler.ErrorHandler
@@ -37,9 +38,13 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	categoryService := service.NewCategoryService(categoryRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
+	hub := handler.NewHub()
+	go hub.Run()
+
 	imageRepo := repository.NewProductImageRepository(db)
 	summaryRepo := repository.NewDamageDetectionSummaryRepository(db)
-	imageService := service.NewImageService(gcs, imageRepo, summaryRepo)
+	damageRepo := repository.NewDamageRepository(db)
+	imageService := service.NewImageService(gcs, imageRepo, summaryRepo, damageRepo, vertexAI, hub)
 	imageHandler := handler.NewImageHandler(imageService)
 
 	productRepo := repository.NewProductRepository(db)
@@ -58,9 +63,6 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	ratingRepo := repository.NewRatingRepository(db)
 	ratingService := service.NewRatingService(ratingRepo, orderRepo)
 	ratingHandler := handler.NewRatingHandler(ratingService)
-
-	hub := handler.NewHub()
-	go hub.Run()
 
 	messageRepo := repository.NewMessageRepository(db)
 	messageService := service.NewMessageService(messageRepo, hub)

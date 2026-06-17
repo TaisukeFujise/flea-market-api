@@ -1,7 +1,6 @@
 locals {
   secrets = [
     "DATABASE_URL",
-    "GEMINI_API_KEY",
     "MESHY_API_KEY",
     "MESHY_WEBHOOK_SECRET",
   ]

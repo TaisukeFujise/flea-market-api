@@ -16,10 +16,7 @@ resource "google_project_service" "apis" {
     # Firebase Authentication
     "identitytoolkit.googleapis.com",
 
-    # Gemini API
-    "generativelanguage.googleapis.com",
-
-    # Vertex AI（Multimodal Embedding）
+    # Vertex AI（Gemini + Multimodal Embedding）
     "aiplatform.googleapis.com",
 
     # Secret Manager

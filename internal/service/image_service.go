@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
@@ -21,6 +23,34 @@ type ProductImageRepository interface {
 
 type DamageDetectionSummaryRepository interface {
 	Create(ctx context.Context, summary domain.DamageDetectionSummary) (domain.DamageDetectionSummary, error)
+	Update(ctx context.Context, id string, condition domain.ProductCondition, conditionNote string, status domain.DetectionStatus) error
+	UpdateStatus(ctx context.Context, id string, status domain.DetectionStatus) error
+}
+
+type DamageRepository interface {
+	CreateAll(ctx context.Context, damages []domain.DamageCreate) error
+}
+
+type DetectorInput struct {
+	ImageID     string
+	GCSName     string
+	ContentType string
+	Angle       domain.ImageAngle
+}
+
+type DamageDetectionResult struct {
+	Condition     domain.ProductCondition
+	ConditionNote string
+	Damages       []domain.DamageCreate
+}
+
+type DamageDetectionClient interface {
+	Detect(ctx context.Context, images []DetectorInput) (DamageDetectionResult, error)
+}
+
+type DetectionNotifier interface {
+	NotifyDamageDetectionComplete(userID string, result DamageDetectionResult)
+	NotifyDamageDetectionFailed(userID string)
 }
 
 type ImageUpload struct {
@@ -33,10 +63,27 @@ type ImageService struct {
 	storage     StorageClient
 	imageRepo   ProductImageRepository
 	summaryRepo DamageDetectionSummaryRepository
+	damageRepo  DamageRepository
+	detectionClient DamageDetectionClient
+	notifier    DetectionNotifier
 }
 
-func NewImageService(s StorageClient, ir ProductImageRepository, sr DamageDetectionSummaryRepository) *ImageService {
-	return &ImageService{storage: s, imageRepo: ir, summaryRepo: sr}
+func NewImageService(
+	s StorageClient,
+	ir ProductImageRepository,
+	sr DamageDetectionSummaryRepository,
+	dr DamageRepository,
+	detectionClient DamageDetectionClient,
+	notifier DetectionNotifier,
+) *ImageService {
+	return &ImageService{
+		storage:     s,
+		imageRepo:   ir,
+		summaryRepo: sr,
+		damageRepo:  dr,
+		detectionClient: detectionClient,
+		notifier:    notifier,
+	}
 }
 
 func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads []ImageUpload) ([]string, error) {
@@ -57,11 +104,9 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		urls[i] = url
 	}
 
-	// stub: #13 でurlsをVertex AIに渡して傷検出を呼び出し、結果をCondition/ConditionNoteに反映する
 	summary, err := s.summaryRepo.Create(ctx, domain.DamageDetectionSummary{
-		UserID:        userID,
-		Condition:     domain.ConditionGood,
-		ConditionNote: "",
+		UserID: userID,
+		Status: domain.DetectionStatusProcessing,
 	})
 	if err != nil {
 		s.deleteGCSObjects(gcsNames)
@@ -82,7 +127,55 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		s.deleteGCSObjects(gcsNames)
 		return nil, err
 	}
+
+	detectorInputs := make([]DetectorInput, len(uploads))
+	for i, u := range uploads {
+		detectorInputs[i] = DetectorInput{
+			ImageID:     ids[i],
+			GCSName:     gcsNames[i],
+			ContentType: u.ContentType,
+			Angle:       u.Angle,
+		}
+	}
+
+	go s.runDetection(summary.ID, userID, detectorInputs)
+
 	return ids, nil
+}
+
+func (s *ImageService) runDetection(summaryID, userID string, inputs []DetectorInput) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := s.detectionClient.Detect(ctx, inputs)
+	if err != nil {
+		slog.Error("damage detection failed", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
+		return
+	}
+
+	if err := s.damageRepo.CreateAll(ctx, result.Damages); err != nil {
+		slog.Error("failed to insert damages", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
+		return
+	}
+
+	if err := s.summaryRepo.Update(ctx, summaryID, result.Condition, result.ConditionNote, domain.DetectionStatusDone); err != nil {
+		slog.Error("failed to update damage detection summary", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
+		return
+	}
+
+	s.notifier.NotifyDamageDetectionComplete(userID, result)
+}
+
+func (s *ImageService) markDetectionFailed(summaryID, userID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.summaryRepo.UpdateStatus(ctx, summaryID, domain.DetectionStatusFailed); err != nil {
+		slog.Error("failed to mark detection as failed", "summaryID", summaryID, "error", err)
+	}
+	s.notifier.NotifyDamageDetectionFailed(userID)
 }
 
 func (s *ImageService) deleteGCSObjects(names []string) {

@@ -22,7 +22,7 @@
 | comments | 商品詳細の Q&A。全ユーザーに公開 |
 | likes | `(user_id, product_id)` に UNIQUE 制約で二重いいね防止 |
 | viewing_history | `(user_id, product_id)` に UNIQUE 制約。同じ商品を再閲覧したら `viewed_at` を UPDATE |
-| damage_detection_summaries | 傷検出完了時に一時保存。商品出品時にサーバーが参照して `products` に適用後は参照のみ |
+| damage_detection_summaries | 傷検出の進捗と結果を保持。`status` は `processing`（検出中）/ `done`（完了）/ `failed`（失敗）の3値。`condition` / `condition_note` は `done` 時のみ設定され、商品出品時にサーバーが参照して `products` に適用する |
 | feedback_embeddings | `vector(1408)`（Vertex AI Multimodal Embedding の次元数）。`category_id` でフィルタして pgvector 類似検索 |
 
 ---

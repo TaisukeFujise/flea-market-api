@@ -59,6 +59,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	ratingService := service.NewRatingService(ratingRepo, orderRepo)
 	ratingHandler := handler.NewRatingHandler(ratingService)
 
+	messageRepo := repository.NewMessageRepository(db)
+	messageService := service.NewMessageService(messageRepo)
+	messageHandler := handler.NewMessageHandler(messageService)
+
 	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
 	commentHandler := handler.NewCommentHandler(commentService)
@@ -91,10 +95,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.PATCH("/products/:id", productHandler.Update)
 	authed.DELETE("/products/:id", productHandler.Delete)
 
-	// images
+	// TODO images 　傷検出AI呼び出しは置き換えの必要
 	authed.POST("/images", imageHandler.Upload)
 
-	// damages
+	// TODO damages
 	public.GET("/products/:id/damages", notImplemented)
 	authed.PATCH("/damages/:id", notImplemented)
 
@@ -116,10 +120,10 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client) *echo.Echo {
 	authed.POST("/orders/:id/feedback", ratingHandler.Create)
 
 	// message rooms
-	authed.GET("/message-rooms/:id/messages", notImplemented)
-	authed.POST("/message-rooms/:id/messages", notImplemented)
+	authed.GET("/message-rooms/:id/messages", messageHandler.GetList)
+	authed.POST("/message-rooms/:id/messages", messageHandler.Create)
 
-	// websocket
+	// TODO websocket
 	e.GET("/ws", notImplemented)
 
 	return e

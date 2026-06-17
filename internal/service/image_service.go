@@ -24,6 +24,7 @@ type ProductImageRepository interface {
 type DamageDetectionSummaryRepository interface {
 	Create(ctx context.Context, summary domain.DamageDetectionSummary) (domain.DamageDetectionSummary, error)
 	Update(ctx context.Context, id string, condition domain.ProductCondition, conditionNote string, status domain.DetectionStatus) error
+	UpdateStatus(ctx context.Context, id string, status domain.DetectionStatus) error
 }
 
 type DamageRepository interface {
@@ -49,6 +50,7 @@ type DamageDetectionClient interface {
 
 type DetectionNotifier interface {
 	NotifyDamageDetectionComplete(userID string, result DamageDetectionResult)
+	NotifyDamageDetectionFailed(userID string)
 }
 
 type ImageUpload struct {
@@ -148,20 +150,32 @@ func (s *ImageService) runDetection(summaryID, userID string, inputs []DetectorI
 	result, err := s.detectionClient.Detect(ctx, inputs)
 	if err != nil {
 		slog.Error("damage detection failed", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
 		return
 	}
 
 	if err := s.damageRepo.CreateAll(ctx, result.Damages); err != nil {
 		slog.Error("failed to insert damages", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
 		return
 	}
 
 	if err := s.summaryRepo.Update(ctx, summaryID, result.Condition, result.ConditionNote, domain.DetectionStatusDone); err != nil {
 		slog.Error("failed to update damage detection summary", "summaryID", summaryID, "error", err)
+		s.markDetectionFailed(summaryID, userID)
 		return
 	}
 
 	s.notifier.NotifyDamageDetectionComplete(userID, result)
+}
+
+func (s *ImageService) markDetectionFailed(summaryID, userID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.summaryRepo.UpdateStatus(ctx, summaryID, domain.DetectionStatusFailed); err != nil {
+		slog.Error("failed to mark detection as failed", "summaryID", summaryID, "error", err)
+	}
+	s.notifier.NotifyDamageDetectionFailed(userID)
 }
 
 func (s *ImageService) deleteGCSObjects(names []string) {

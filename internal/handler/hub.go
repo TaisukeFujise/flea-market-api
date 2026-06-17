@@ -15,6 +15,7 @@ type EventType string
 const (
 	EventNewMessage              EventType = "new_message"
 	EventDamageDetectionComplete EventType = "damage_detection_complete"
+	EventDamageDetectionFailed   EventType = "damage_detection_failed"
 	EventModelGenerationComplete EventType = "model_generation_complete"
 )
 
@@ -142,5 +143,20 @@ func (h *Hub) NotifyDamageDetectionComplete(userID string, result service.Damage
 	}:
 	default:
 		slog.Warn("damage_detection_complete notification dropped: send channel full", "userID", userID)
+	}
+}
+
+// NotifyDamageDetectionFailed implements service.DetectionNotifier.
+func (h *Hub) NotifyDamageDetectionFailed(userID string) {
+	select {
+	case h.send <- sendRequest{
+		userID: userID,
+		payload: wsEvent{
+			Type:    EventDamageDetectionFailed,
+			Payload: nil,
+		},
+	}:
+	default:
+		slog.Warn("damage_detection_failed notification dropped: send channel full", "userID", userID)
 	}
 }

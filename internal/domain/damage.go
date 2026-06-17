@@ -13,6 +13,7 @@ type DetectionStatus string
 const (
 	DetectionStatusProcessing DetectionStatus = "processing"
 	DetectionStatusDone       DetectionStatus = "done"
+	DetectionStatusFailed     DetectionStatus = "failed"
 )
 
 // DamageCreate は AI 検出結果を damages テーブルに保存するための入力。

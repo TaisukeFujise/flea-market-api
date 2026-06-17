@@ -28,6 +28,25 @@ func (r *DamageDetectionSummaryRepository) Create(ctx context.Context, summary d
 	return summary, nil
 }
 
+func (r *DamageDetectionSummaryRepository) UpdateStatus(ctx context.Context, id string, status domain.DetectionStatus) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE damage_detection_summaries
+		SET status = $2
+		WHERE id = $1
+	`, id, string(status))
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update damage detection status")
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to get rows affected")
+	}
+	if n == 0 {
+		return apperror.ErrNotFound.New("damage detection summary not found")
+	}
+	return nil
+}
+
 func (r *DamageDetectionSummaryRepository) Update(ctx context.Context, id string, condition domain.ProductCondition, conditionNote string, status domain.DetectionStatus) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE damage_detection_summaries

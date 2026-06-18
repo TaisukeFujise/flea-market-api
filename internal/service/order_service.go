@@ -19,6 +19,7 @@ type OrderRepository interface {
 	Create(ctx context.Context, buyerID, productID string, price int) (domain.Order, error)
 	ListByUserID(ctx context.Context, userID string, f domain.OrderFilter) ([]domain.OrderListItem, int, error)
 	FindByID(ctx context.Context, id string) (domain.OrderDetail, error)
+	FindByIDForUser(ctx context.Context, id, uid string) (domain.OrderDetail, error)
 	UpdateStatus(ctx context.Context, id string, status domain.OrderStatus) error
 }
 
@@ -53,7 +54,7 @@ func (s *OrderService) ListOrders(ctx context.Context, userID string, f domain.O
 }
 
 func (s *OrderService) GetOrder(ctx context.Context, id, uid string) (domain.OrderDetail, error) {
-	order, err := s.orderRepo.FindByID(ctx, id)
+	order, err := s.orderRepo.FindByIDForUser(ctx, id, uid)
 	if err != nil {
 		return domain.OrderDetail{}, err
 	}

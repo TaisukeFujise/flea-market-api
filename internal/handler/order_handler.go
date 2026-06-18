@@ -59,13 +59,20 @@ type orderProductResponse struct {
 	ThumbnailURL *string `json:"thumbnail_url"`
 }
 
+type orderUserSummaryResponse struct {
+	ID          string  `json:"id"`
+	DisplayName string  `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url"`
+}
+
 type orderListItemResponse struct {
-	ID        string               `json:"id"`
-	Product   orderProductResponse `json:"product"`
-	Price     int                  `json:"price"`
-	Status    string               `json:"status"`
-	Role      string               `json:"role"`
-	CreatedAt time.Time            `json:"created_at"`
+	ID          string                   `json:"id"`
+	Product     orderProductResponse     `json:"product"`
+	Counterpart orderUserSummaryResponse `json:"counterpart"`
+	Price       int                      `json:"price"`
+	Status      string                   `json:"status"`
+	Role        string                   `json:"role"`
+	CreatedAt   time.Time                `json:"created_at"`
 }
 
 type orderListResponse struct {
@@ -110,6 +117,11 @@ func (h *OrderHandler) GetList(c *echo.Context) error {
 				Title:        o.Product.Title,
 				ThumbnailURL: o.Product.ThumbnailURL,
 			},
+			Counterpart: orderUserSummaryResponse{
+				ID:          o.Counterpart.ID,
+				DisplayName: o.Counterpart.DisplayName,
+				AvatarURL:   o.Counterpart.AvatarURL,
+			},
 			Price:     o.Price,
 			Status:    string(o.Status),
 			Role:      string(o.Role),
@@ -126,14 +138,15 @@ func (h *OrderHandler) GetList(c *echo.Context) error {
 }
 
 type orderDetailResponse struct {
-	ID            string               `json:"id"`
-	Product       orderProductResponse `json:"product"`
-	BuyerID       string               `json:"buyer_id"`
-	Price         int                  `json:"price"`
-	Status        string               `json:"status"`
-	MessageRoomID string               `json:"message_room_id"`
-	CreatedAt     time.Time            `json:"created_at"`
-	UpdatedAt     time.Time            `json:"updated_at"`
+	ID            string                   `json:"id"`
+	Product       orderProductResponse     `json:"product"`
+	Counterpart   orderUserSummaryResponse `json:"counterpart"`
+	Price         int                      `json:"price"`
+	Status        string                   `json:"status"`
+	Role          string                   `json:"role"`
+	MessageRoomID string                   `json:"message_room_id"`
+	CreatedAt     time.Time                `json:"created_at"`
+	UpdatedAt     time.Time                `json:"updated_at"`
 }
 
 func (h *OrderHandler) GetByID(c *echo.Context) error {
@@ -159,9 +172,14 @@ func (h *OrderHandler) GetByID(c *echo.Context) error {
 			Title:        order.Product.Title,
 			ThumbnailURL: order.Product.ThumbnailURL,
 		},
-		BuyerID:       order.BuyerID,
+		Counterpart: orderUserSummaryResponse{
+			ID:          order.Counterpart.ID,
+			DisplayName: order.Counterpart.DisplayName,
+			AvatarURL:   order.Counterpart.AvatarURL,
+		},
 		Price:         order.Price,
 		Status:        string(order.Status),
+		Role:          string(order.Role),
 		MessageRoomID: order.MessageRoomID,
 		CreatedAt:     order.CreatedAt,
 		UpdatedAt:     order.UpdatedAt,

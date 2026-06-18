@@ -2,6 +2,12 @@ package domain
 
 import "time"
 
+type UserSummary struct {
+	ID          string
+	DisplayName string
+	AvatarURL   *string
+}
+
 type User struct {
 	ID           string
 	DisplayName  string

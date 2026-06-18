@@ -2,16 +2,10 @@ package domain
 
 import "time"
 
-type MessageSender struct {
-	ID          string
-	DisplayName string
-	AvatarURL   *string
-}
-
 type Message struct {
 	ID        string
 	RoomID    string
-	Sender    MessageSender
+	Sender    UserSummary
 	Content   string
 	CreatedAt time.Time
 }

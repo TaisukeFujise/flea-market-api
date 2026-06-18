@@ -121,3 +121,9 @@ type ViewingHistoryFilter struct {
 	Limit  int
 	Offset int
 }
+
+type ListingsFilter struct {
+	Status *ProductStatus
+	Limit  int
+	Offset int
+}

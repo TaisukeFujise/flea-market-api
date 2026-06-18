@@ -36,35 +36,82 @@ func NewVertexAIClient(ctx context.Context) (*VertexAIClient, error) {
 	return &VertexAIClient{client: client, gcsBucket: bucket}, nil
 }
 
-const systemInstruction = `あなたは中古品フリマアプリの商品査定AIです。
+const systemInstruction = `
+あなたは中古品フリマアプリの商品査定AIです。
 商品の複数方向の画像を分析し、傷や汚れを検出してください。
-各画像の直後に撮影方向（front/back/right/left/top）を示すテキストが続きます。
+各画像の直前に撮影方向（front/back/right/left/top）を示すテキストが続きます。
 
-以下のJSON形式のみで返答してください。説明文、Markdown、コードブロックは禁止です。
-
-{
-  "condition": "good" または "fair" または "poor",
-  "condition_note": "全体的な商品状態の日本語説明（1〜2文）",
-  "damages": [
-    {
-      "image_angle": "front" または "back" または "right" または "left" または "top",
-      "damage_type": "scratch" または "dirt" または "wear",
-      "bbox_x1": 0,
-      "bbox_y1": 0,
-      "bbox_x2": 1000,
-      "bbox_y2": 1000,
-      "description": "傷の説明（日本語）"
-    }
-  ]
-}
+出力は response schema に完全に従ってください。
+説明文、Markdown、コードブロック、schema外のフィールドは禁止です。
 
 condition の基準：
 - good: 傷や汚れがほとんどなく状態が良い
 - fair: 使用感があり軽微な傷や汚れがある
 - poor: 目立つ傷・汚れ・破損がある
 
-bbox は画像左上を(0,0)・右下を(1000,1000)とした正規化座標で指定してください。
-傷がない場合は damages を空配列にしてください。`
+damage_type の基準：
+- scratch: 線状の傷、削れ、ひっかき傷
+- dirt: 汚れ、シミ、変色、付着物
+- wear: 使用に伴う擦れ、角スレ、表面の摩耗
+
+bbox は以下のルールで指定してください：
+- 対象の傷・汚れ・使用感が完全に含まれる最小の矩形にしてください
+- 不確かな場合は、対象を少し広めに含めてください
+- bbox_x1 < bbox_x2、bbox_y1 < bbox_y2 を必ず満たしてください
+- 画像左上を(0,0)・右下を(1000,1000)とした正規化座標で、[0,1000] の整数で返してください
+- 同じ損傷を複数回返さないでください。
+
+傷がない場合は damages を空配列にしてください。
+condition_noteは日本語で1~2文にしてください。
+`
+
+var detectionResponseSchema = &genai.Schema{
+	Type: genai.TypeObject,
+	Properties: map[string]*genai.Schema{
+		"condition": {
+			Type: genai.TypeString,
+			Enum: []string{"good", "fair", "poor"},
+		},
+		"condition_note": {
+			Type: genai.TypeString,
+		},
+		"damages": {
+			Type: genai.TypeArray,
+			Items: &genai.Schema{
+				Type: genai.TypeObject,
+				Properties: map[string]*genai.Schema{
+					"image_angle": {
+						Type: genai.TypeString,
+						Enum: []string{"front", "back", "right", "left", "top"},
+					},
+					"damage_type": {
+						Type: genai.TypeString,
+						Enum: []string{"scratch", "dirt", "wear"},
+					},
+					"bbox_x1":     {Type: genai.TypeInteger},
+					"bbox_y1":     {Type: genai.TypeInteger},
+					"bbox_x2":     {Type: genai.TypeInteger},
+					"bbox_y2":     {Type: genai.TypeInteger},
+					"description": {Type: genai.TypeString},
+				},
+				Required: []string{
+					"image_angle",
+					"damage_type",
+					"bbox_x1",
+					"bbox_y1",
+					"bbox_x2",
+					"bbox_y2",
+					"description",
+				},
+			},
+		},
+	},
+	Required: []string{
+		"condition",
+		"condition_note",
+		"damages",
+	},
+}
 
 type detectionResponse struct {
 	Condition     string           `json:"condition"`
@@ -109,6 +156,7 @@ func (c *VertexAIClient) Detect(ctx context.Context, inputs []service.DetectorIn
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemInstruction, genai.RoleUser),
 		ResponseMIMEType:  "application/json",
+		ResponseSchema:    detectionResponseSchema,
 		CandidateCount:    1,
 	}
 

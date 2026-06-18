@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -119,14 +120,17 @@ func (c *VertexAIClient) Detect(ctx context.Context, inputs []service.DetectorIn
 		return service.DamageDetectionResult{}, fmt.Errorf("prompt blocked: %v", result.PromptFeedback.BlockReason)
 	}
 	raw := strings.TrimSpace(result.Text())
+	slog.Info("Gemini raw response", "response", raw)
 	if raw == "" {
 		return service.DamageDetectionResult{}, fmt.Errorf("empty response from Gemini")
 	}
 
 	var dr detectionResponse
 	if err := json.Unmarshal([]byte(raw), &dr); err != nil {
+		slog.Error("failed to parse Gemini response", "raw", raw, "error", err)
 		return service.DamageDetectionResult{}, fmt.Errorf("failed to parse Gemini response: %w", err)
 	}
+	slog.Info("Gemini parsed response", "condition", dr.Condition, "condition_note", dr.ConditionNote, "damage_count", len(dr.Damages))
 
 	if !validConditions[dr.Condition] {
 		dr.Condition = string(domain.ConditionFair)

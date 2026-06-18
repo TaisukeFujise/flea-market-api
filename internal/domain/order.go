@@ -35,12 +35,13 @@ type OrderProduct struct {
 }
 
 type OrderListItem struct {
-	ID        string
-	Product   OrderProduct
-	Price     int
-	Status    OrderStatus
-	Role      OrderRole
-	CreatedAt time.Time
+	ID          string
+	Product     OrderProduct
+	Counterpart UserSummary
+	Price       int
+	Status      OrderStatus
+	Role        OrderRole
+	CreatedAt   time.Time
 }
 
 type OrderFilter struct {
@@ -54,6 +55,8 @@ type OrderDetail struct {
 	Product       OrderProduct
 	BuyerID       string
 	SellerID      string
+	Role          OrderRole
+	Counterpart   UserSummary
 	Price         int
 	Status        OrderStatus
 	MessageRoomID string

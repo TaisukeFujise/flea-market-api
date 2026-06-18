@@ -94,9 +94,14 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 			o.price,
 			o.status::TEXT,
 			CASE WHEN o.buyer_id = $1 THEN 'buyer' ELSE 'seller' END,
-			o.created_at
+			o.created_at,
+			CASE WHEN o.buyer_id = $1 THEN su.id      ELSE bu.id           END,
+			CASE WHEN o.buyer_id = $1 THEN su.display_name ELSE bu.display_name END,
+			CASE WHEN o.buyer_id = $1 THEN su.avatar_url   ELSE bu.avatar_url   END
 		FROM orders o
 		JOIN products p ON p.id = o.product_id
+		LEFT JOIN users bu ON bu.id = o.buyer_id
+		LEFT JOIN users su ON su.id = o.seller_id
 		WHERE `+whereClause+`
 		ORDER BY o.created_at DESC
 		LIMIT $2 OFFSET $3
@@ -110,6 +115,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 	for rows.Next() {
 		var item domain.OrderListItem
 		var thumbnailURL sql.NullString
+		var counterpartAvatarURL sql.NullString
 		if err := rows.Scan(
 			&item.ID,
 			&item.Product.ID,
@@ -119,11 +125,17 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 			&item.Status,
 			&item.Role,
 			&item.CreatedAt,
+			&item.Counterpart.ID,
+			&item.Counterpart.DisplayName,
+			&counterpartAvatarURL,
 		); err != nil {
 			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan order")
 		}
 		if thumbnailURL.Valid {
 			item.Product.ThumbnailURL = &thumbnailURL.String
+		}
+		if counterpartAvatarURL.Valid {
+			item.Counterpart.AvatarURL = &counterpartAvatarURL.String
 		}
 		items = append(items, item)
 	}
@@ -173,6 +185,63 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (domain.Order
 	}
 	if messageRoomID.Valid {
 		o.MessageRoomID = messageRoomID.String
+	}
+	return o, nil
+}
+
+func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (domain.OrderDetail, error) {
+	var o domain.OrderDetail
+	var thumbnailURL sql.NullString
+	var messageRoomID sql.NullString
+	var counterpartAvatarURL sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT
+			o.id,
+			p.id, p.title,
+			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
+			o.buyer_id,
+			o.seller_id,
+			CASE WHEN o.buyer_id = $2 THEN 'buyer' ELSE 'seller' END,
+			CASE WHEN o.buyer_id = $2 THEN su.id           ELSE bu.id           END,
+			CASE WHEN o.buyer_id = $2 THEN su.display_name ELSE bu.display_name END,
+			CASE WHEN o.buyer_id = $2 THEN su.avatar_url   ELSE bu.avatar_url   END,
+			o.price, o.status::TEXT,
+			mr.id,
+			o.created_at, o.updated_at
+		FROM orders o
+		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
+		LEFT JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
+		LEFT JOIN users bu ON bu.id = o.buyer_id
+		LEFT JOIN users su ON su.id = o.seller_id
+		WHERE o.id = $1::UUID
+	`, id, uid).Scan(
+		&o.ID,
+		&o.Product.ID, &o.Product.Title,
+		&thumbnailURL,
+		&o.BuyerID,
+		&o.SellerID,
+		&o.Role,
+		&o.Counterpart.ID,
+		&o.Counterpart.DisplayName,
+		&counterpartAvatarURL,
+		&o.Price, &o.Status,
+		&messageRoomID,
+		&o.CreatedAt, &o.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.OrderDetail{}, apperror.ErrNotFound.New("order not found")
+		}
+		return domain.OrderDetail{}, apperror.ErrInternal.Wrap(err, "failed to get order")
+	}
+	if thumbnailURL.Valid {
+		o.Product.ThumbnailURL = &thumbnailURL.String
+	}
+	if messageRoomID.Valid {
+		o.MessageRoomID = messageRoomID.String
+	}
+	if counterpartAvatarURL.Valid {
+		o.Counterpart.AvatarURL = &counterpartAvatarURL.String
 	}
 	return o, nil
 }

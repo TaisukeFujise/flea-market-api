@@ -392,14 +392,14 @@ func (r *ProductRepository) Update(ctx context.Context, id string, sellerID stri
 	return nil
 }
 
-func (r *ProductRepository) ListBySeller(ctx context.Context, f domain.ListingsFilter) ([]domain.Product, int, error) {
+func (r *ProductRepository) ListBySeller(ctx context.Context, sellerID string, f domain.ListingsFilter) ([]domain.Product, int, error) {
 	args := make([]any, 0, 4)
 	nextArg := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
 
-	wheres := []string{"p.deleted_at IS NULL", fmt.Sprintf("p.user_id = %s", nextArg(f.SellerID))}
+	wheres := []string{"p.deleted_at IS NULL", fmt.Sprintf("p.user_id = %s", nextArg(sellerID))}
 	if f.Status != nil {
 		wheres = append(wheres, fmt.Sprintf("p.status::TEXT = %s", nextArg(string(*f.Status))))
 	}
@@ -410,7 +410,10 @@ func (r *ProductRepository) ListBySeller(ctx context.Context, f domain.ListingsF
 	copy(countArgs, args)
 
 	var total int
-	if err := r.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM products p WHERE %s`, whereClause), countArgs...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM products p
+		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+		WHERE %s`, whereClause), countArgs...).Scan(&total); err != nil {
 		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count listings")
 	}
 
@@ -435,6 +438,7 @@ func (r *ProductRepository) ListBySeller(ctx context.Context, f domain.ListingsF
 			pm.glb_url,
 			p.created_at
 		FROM products p
+		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
 		LEFT JOIN LATERAL (
 			SELECT status, glb_url
 			FROM product_models

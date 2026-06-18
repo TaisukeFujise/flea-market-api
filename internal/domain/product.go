@@ -123,8 +123,7 @@ type ViewingHistoryFilter struct {
 }
 
 type ListingsFilter struct {
-	SellerID string
-	Status   *ProductStatus
-	Limit    int
-	Offset   int
+	Status *ProductStatus
+	Limit  int
+	Offset int
 }

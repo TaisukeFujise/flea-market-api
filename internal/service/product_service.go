@@ -9,7 +9,7 @@ import (
 
 type ProductRepository interface {
 	List(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
-	ListBySeller(ctx context.Context, f domain.ListingsFilter) ([]domain.Product, int, error)
+	ListBySeller(ctx context.Context, sellerID string, f domain.ListingsFilter) ([]domain.Product, int, error)
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
 	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 	Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error
@@ -47,8 +47,7 @@ func (s *ProductService) Delete(ctx context.Context, id string, sellerID string)
 }
 
 func (s *ProductService) ListBySeller(ctx context.Context, sellerID string, f domain.ListingsFilter) ([]domain.Product, int, error) {
-	f.SellerID = sellerID
-	return s.repo.ListBySeller(ctx, f)
+	return s.repo.ListBySeller(ctx, sellerID, f)
 }
 
 func (s *ProductService) ListViewingHistory(ctx context.Context, userID string, f domain.ViewingHistoryFilter) ([]domain.ViewingHistory, int, error) {

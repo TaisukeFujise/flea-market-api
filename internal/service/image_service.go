@@ -34,6 +34,7 @@ type DamageRepository interface {
 type DetectorInput struct {
 	ImageID     string
 	GCSName     string
+	URL         string
 	ContentType string
 	Angle       domain.ImageAngle
 }
@@ -44,12 +45,30 @@ type DamageDetectionResult struct {
 	Damages       []domain.DamageCreate
 }
 
+type DamageItemNotification struct {
+	ImageID     string
+	ImageURL    string
+	ImageAngle  domain.ImageAngle
+	DamageType  domain.DamageType
+	BboxX1      *int
+	BboxY1      *int
+	BboxX2      *int
+	BboxY2      *int
+	Description *string
+}
+
+type DamageDetectionNotification struct {
+	Condition     domain.ProductCondition
+	ConditionNote string
+	Damages       []DamageItemNotification
+}
+
 type DamageDetectionClient interface {
 	Detect(ctx context.Context, images []DetectorInput) (DamageDetectionResult, error)
 }
 
 type DetectionNotifier interface {
-	NotifyDamageDetectionComplete(userID string, result DamageDetectionResult)
+	NotifyDamageDetectionComplete(userID string, notif DamageDetectionNotification)
 	NotifyDamageDetectionFailed(userID string)
 }
 
@@ -133,6 +152,7 @@ func (s *ImageService) UploadImages(ctx context.Context, userID string, uploads 
 		detectorInputs[i] = DetectorInput{
 			ImageID:     ids[i],
 			GCSName:     gcsNames[i],
+			URL:         urls[i],
 			ContentType: u.ContentType,
 			Angle:       u.Angle,
 		}
@@ -166,7 +186,34 @@ func (s *ImageService) runDetection(summaryID, userID string, inputs []DetectorI
 		return
 	}
 
-	s.notifier.NotifyDamageDetectionComplete(userID, result)
+	s.notifier.NotifyDamageDetectionComplete(userID, buildNotification(result, inputs))
+}
+
+func buildNotification(result DamageDetectionResult, inputs []DetectorInput) DamageDetectionNotification {
+	inputByID := make(map[string]DetectorInput, len(inputs))
+	for _, inp := range inputs {
+		inputByID[inp.ImageID] = inp
+	}
+	damages := make([]DamageItemNotification, len(result.Damages))
+	for i, d := range result.Damages {
+		inp := inputByID[d.ImageID]
+		damages[i] = DamageItemNotification{
+			ImageID:     d.ImageID,
+			ImageURL:    inp.URL,
+			ImageAngle:  inp.Angle,
+			DamageType:  d.DamageType,
+			BboxX1:      d.BboxX1,
+			BboxY1:      d.BboxY1,
+			BboxX2:      d.BboxX2,
+			BboxY2:      d.BboxY2,
+			Description: d.Description,
+		}
+	}
+	return DamageDetectionNotification{
+		Condition:     result.Condition,
+		ConditionNote: result.ConditionNote,
+		Damages:       damages,
+	}
 }
 
 func (s *ImageService) markDetectionFailed(summaryID, userID string) {

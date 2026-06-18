@@ -107,6 +107,8 @@ type damageDetectionCompletePayload struct {
 
 type damageItemPayload struct {
 	ImageID     string  `json:"image_id"`
+	ImageURL    string  `json:"image_url"`
+	ImageAngle  string  `json:"image_angle"`
 	DamageType  string  `json:"damage_type"`
 	BboxX1      *int    `json:"bbox_x1"`
 	BboxY1      *int    `json:"bbox_y1"`
@@ -116,11 +118,13 @@ type damageItemPayload struct {
 }
 
 // NotifyDamageDetectionComplete implements service.DetectionNotifier.
-func (h *Hub) NotifyDamageDetectionComplete(userID string, result service.DamageDetectionResult) {
-	damages := make([]damageItemPayload, len(result.Damages))
-	for i, d := range result.Damages {
+func (h *Hub) NotifyDamageDetectionComplete(userID string, notif service.DamageDetectionNotification) {
+	damages := make([]damageItemPayload, len(notif.Damages))
+	for i, d := range notif.Damages {
 		damages[i] = damageItemPayload{
 			ImageID:     d.ImageID,
+			ImageURL:    d.ImageURL,
+			ImageAngle:  string(d.ImageAngle),
 			DamageType:  string(d.DamageType),
 			BboxX1:      d.BboxX1,
 			BboxY1:      d.BboxY1,
@@ -135,8 +139,8 @@ func (h *Hub) NotifyDamageDetectionComplete(userID string, result service.Damage
 		payload: wsEvent{
 			Type: EventDamageDetectionComplete,
 			Payload: damageDetectionCompletePayload{
-				Condition:     string(result.Condition),
-				ConditionNote: result.ConditionNote,
+				Condition:     string(notif.Condition),
+				ConditionNote: notif.ConditionNote,
 				Damages:       damages,
 			},
 		},

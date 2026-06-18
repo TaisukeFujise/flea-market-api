@@ -917,6 +917,8 @@ ws://localhost:8080/ws?token=<Firebase ID Token>
     "damages": [
       {
         "image_id": "uuid",
+        "image_url": "https://storage.googleapis.com/bucket/product-images/xxx.jpg",
+        "image_angle": "right",
         "damage_type": "scratch",
         "bbox_x1": 100,
         "bbox_y1": 320,

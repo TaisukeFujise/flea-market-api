@@ -80,7 +80,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 	if err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM orders o
-		JOIN products p ON p.id = o.product_id
+		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
 		WHERE `+whereClause, userID).Scan(&total); err != nil {
 		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count orders")
 	}
@@ -93,15 +93,15 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
 			o.price,
 			o.status::TEXT,
-			CASE WHEN o.buyer_id = $1 THEN 'buyer' ELSE 'seller' END,
+			CASE WHEN o.buyer_id = $1 THEN '`+string(domain.OrderRoleBuyer)+`' ELSE '`+string(domain.OrderRoleSeller)+`' END,
 			o.created_at,
 			CASE WHEN o.buyer_id = $1 THEN su.id      ELSE bu.id           END,
 			CASE WHEN o.buyer_id = $1 THEN su.display_name ELSE bu.display_name END,
 			CASE WHEN o.buyer_id = $1 THEN su.avatar_url   ELSE bu.avatar_url   END
 		FROM orders o
-		JOIN products p ON p.id = o.product_id
-		LEFT JOIN users bu ON bu.id = o.buyer_id
-		LEFT JOIN users su ON su.id = o.seller_id
+		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
+		LEFT JOIN users bu ON bu.id = o.buyer_id AND bu.deleted_at IS NULL
+		LEFT JOIN users su ON su.id = o.seller_id AND su.deleted_at IS NULL
 		WHERE `+whereClause+`
 		ORDER BY o.created_at DESC
 		LIMIT $2 OFFSET $3
@@ -115,6 +115,8 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 	for rows.Next() {
 		var item domain.OrderListItem
 		var thumbnailURL sql.NullString
+		var counterpartID sql.NullString
+		var counterpartDisplayName sql.NullString
 		var counterpartAvatarURL sql.NullString
 		if err := rows.Scan(
 			&item.ID,
@@ -125,14 +127,20 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 			&item.Status,
 			&item.Role,
 			&item.CreatedAt,
-			&item.Counterpart.ID,
-			&item.Counterpart.DisplayName,
+			&counterpartID,
+			&counterpartDisplayName,
 			&counterpartAvatarURL,
 		); err != nil {
 			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan order")
 		}
 		if thumbnailURL.Valid {
 			item.Product.ThumbnailURL = &thumbnailURL.String
+		}
+		if counterpartID.Valid {
+			item.Counterpart.ID = counterpartID.String
+		}
+		if counterpartDisplayName.Valid {
+			item.Counterpart.DisplayName = counterpartDisplayName.String
 		}
 		if counterpartAvatarURL.Valid {
 			item.Counterpart.AvatarURL = &counterpartAvatarURL.String
@@ -193,6 +201,8 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 	var o domain.OrderDetail
 	var thumbnailURL sql.NullString
 	var messageRoomID sql.NullString
+	var counterpartID sql.NullString
+	var counterpartDisplayName sql.NullString
 	var counterpartAvatarURL sql.NullString
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
@@ -201,7 +211,7 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 			(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL AND pi.angle = 'front' LIMIT 1),
 			o.buyer_id,
 			o.seller_id,
-			CASE WHEN o.buyer_id = $2 THEN 'buyer' ELSE 'seller' END,
+			CASE WHEN o.buyer_id = $2 THEN '`+string(domain.OrderRoleBuyer)+`' ELSE '`+string(domain.OrderRoleSeller)+`' END,
 			CASE WHEN o.buyer_id = $2 THEN su.id           ELSE bu.id           END,
 			CASE WHEN o.buyer_id = $2 THEN su.display_name ELSE bu.display_name END,
 			CASE WHEN o.buyer_id = $2 THEN su.avatar_url   ELSE bu.avatar_url   END,
@@ -211,8 +221,8 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 		FROM orders o
 		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
 		LEFT JOIN message_rooms mr ON mr.order_id = o.id AND mr.deleted_at IS NULL
-		LEFT JOIN users bu ON bu.id = o.buyer_id
-		LEFT JOIN users su ON su.id = o.seller_id
+		LEFT JOIN users bu ON bu.id = o.buyer_id AND bu.deleted_at IS NULL
+		LEFT JOIN users su ON su.id = o.seller_id AND su.deleted_at IS NULL
 		WHERE o.id = $1::UUID
 	`, id, uid).Scan(
 		&o.ID,
@@ -221,8 +231,8 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 		&o.BuyerID,
 		&o.SellerID,
 		&o.Role,
-		&o.Counterpart.ID,
-		&o.Counterpart.DisplayName,
+		&counterpartID,
+		&counterpartDisplayName,
 		&counterpartAvatarURL,
 		&o.Price, &o.Status,
 		&messageRoomID,
@@ -237,11 +247,17 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 	if thumbnailURL.Valid {
 		o.Product.ThumbnailURL = &thumbnailURL.String
 	}
-	if messageRoomID.Valid {
-		o.MessageRoomID = messageRoomID.String
+	if counterpartID.Valid {
+		o.Counterpart.ID = counterpartID.String
+	}
+	if counterpartDisplayName.Valid {
+		o.Counterpart.DisplayName = counterpartDisplayName.String
 	}
 	if counterpartAvatarURL.Valid {
 		o.Counterpart.AvatarURL = &counterpartAvatarURL.String
+	}
+	if messageRoomID.Valid {
+		o.MessageRoomID = messageRoomID.String
 	}
 	return o, nil
 }

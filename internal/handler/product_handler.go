@@ -14,6 +14,7 @@ import (
 
 type ProductService interface {
 	ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, int, error)
+	ListBySeller(ctx context.Context, sellerID string, f domain.ListingsFilter) ([]domain.Product, int, error)
 	GetByID(ctx context.Context, id string, uid *string) (domain.ProductDetail, error)
 	Create(ctx context.Context, sellerID string, input domain.ProductCreate) (domain.Product, error)
 	Update(ctx context.Context, id string, sellerID string, input domain.ProductUpdate) error
@@ -323,6 +324,54 @@ func (h *ProductHandler) Delete(c *echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *ProductHandler) GetListings(c *echo.Context) error {
+	uid, err := firebaseUID(c)
+	if err != nil {
+		return err
+	}
+
+	limit, offset, err := parsePagination(c, 20)
+	if err != nil {
+		return err
+	}
+	f := domain.ListingsFilter{Limit: limit, Offset: offset}
+
+	if v := c.QueryParam("status"); v != "" {
+		s := domain.ProductStatus(v)
+		if s != domain.StatusOnSale && s != domain.StatusSoldOut {
+			return apperror.ErrValidation.New("status must be one of: on_sale, sold_out")
+		}
+		f.Status = &s
+	}
+
+	products, total, err := h.service.ListBySeller(c.Request().Context(), uid, f)
+	if err != nil {
+		return err
+	}
+
+	items := make([]productListItemResponse, len(products))
+	for i, p := range products {
+		items[i] = productListItemResponse{
+			ID:           p.ID,
+			CategoryID:   p.CategoryID,
+			Title:        p.Title,
+			Price:        p.Price,
+			Condition:    string(p.Condition),
+			Status:       string(p.Status),
+			ThumbnailURL: p.ThumbnailURL,
+			Model:        toModelResponse(p.ModelStatus, p.ModelGLBURL),
+			CreatedAt:    p.CreatedAt,
+		}
+	}
+
+	return c.JSON(http.StatusOK, productListResponse{
+		Items:  items,
+		Total:  total,
+		Limit:  f.Limit,
+		Offset: f.Offset,
+	})
 }
 
 type viewingHistoryItemResponse struct {

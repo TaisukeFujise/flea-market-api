@@ -92,6 +92,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	authed.DELETE("/me", userHandler.Delete)
 	authed.PUT("/me/avatar", userHandler.UploadAvatar)
 	authed.GET("/me/likes", likeHandler.GetLikes)
+	authed.GET("/me/listings", productHandler.GetListings)
 	authed.GET("/me/viewing-history", productHandler.GetViewingHistory)
 
 	// categories

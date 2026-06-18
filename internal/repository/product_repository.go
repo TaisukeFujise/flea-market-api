@@ -392,6 +392,103 @@ func (r *ProductRepository) Update(ctx context.Context, id string, sellerID stri
 	return nil
 }
 
+func (r *ProductRepository) ListBySeller(ctx context.Context, f domain.ListingsFilter) ([]domain.Product, int, error) {
+	args := make([]any, 0, 4)
+	nextArg := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+
+	wheres := []string{"p.deleted_at IS NULL", fmt.Sprintf("p.user_id = %s", nextArg(f.SellerID))}
+	if f.Status != nil {
+		wheres = append(wheres, fmt.Sprintf("p.status::TEXT = %s", nextArg(string(*f.Status))))
+	}
+
+	whereClause := strings.Join(wheres, " AND ")
+
+	countArgs := make([]any, len(args))
+	copy(countArgs, args)
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM products p WHERE %s`, whereClause), countArgs...).Scan(&total); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to count listings")
+	}
+
+	limitArg := nextArg(f.Limit)
+	offsetArg := nextArg(f.Offset)
+
+	sqlStr := fmt.Sprintf(`
+		SELECT
+			p.id,
+			p.category_id,
+			p.title,
+			p.price,
+			p.condition::TEXT,
+			p.status::TEXT,
+			(
+				SELECT pi_t.url
+				FROM product_images pi_t
+				WHERE pi_t.product_id = p.id AND pi_t.deleted_at IS NULL AND pi_t.angle = 'front'
+				LIMIT 1
+			),
+			pm.status::TEXT,
+			pm.glb_url,
+			p.created_at
+		FROM products p
+		LEFT JOIN LATERAL (
+			SELECT status, glb_url
+			FROM product_models
+			WHERE product_id = p.id AND deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT 1
+		) pm ON TRUE
+		WHERE %s
+		ORDER BY p.created_at DESC
+		LIMIT %s OFFSET %s
+	`, whereClause, limitArg, offsetArg)
+
+	rows, err := r.db.QueryContext(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to query listings")
+	}
+	defer rows.Close()
+
+	products := make([]domain.Product, 0)
+	for rows.Next() {
+		var p domain.Product
+		var thumbnailURL, modelStatus, modelGLBURL sql.NullString
+		if err := rows.Scan(
+			&p.ID,
+			&p.CategoryID,
+			&p.Title,
+			&p.Price,
+			&p.Condition,
+			&p.Status,
+			&thumbnailURL,
+			&modelStatus,
+			&modelGLBURL,
+			&p.CreatedAt,
+		); err != nil {
+			return nil, 0, apperror.ErrInternal.Wrap(err, "failed to scan listing")
+		}
+		if thumbnailURL.Valid {
+			p.ThumbnailURL = &thumbnailURL.String
+		}
+		if modelStatus.Valid {
+			ms := domain.ModelStatus(modelStatus.String)
+			p.ModelStatus = &ms
+		}
+		if modelGLBURL.Valid {
+			p.ModelGLBURL = &modelGLBURL.String
+		}
+		products = append(products, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperror.ErrInternal.Wrap(err, "failed to iterate listings")
+	}
+	return products, total, nil
+}
+
 func (r *ProductRepository) Exists(ctx context.Context, id string) (bool, error) {
 	var exists bool
 	if err := r.db.QueryRowContext(ctx, `

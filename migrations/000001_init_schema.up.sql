@@ -179,6 +179,7 @@ CREATE TABLE feedback_embeddings (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	damage_report_id UUID NOT NULL REFERENCES damage_reports(id),
 	category_id UUID NOT NULL REFERENCES categories(id),
+	cropped_image_url VARCHAR(500) NOT NULL,
 	embedding vector(3072) NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

@@ -32,8 +32,9 @@ CREATE TABLE categories (
 CREATE TABLE damage_detection_summaries (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	user_id VARCHAR(255) NOT NULL REFERENCES users(id),
-	condition product_condition NOT NULL,
-	condition_note TEXT NOT NULL,
+	condition product_condition,
+	condition_note TEXT,
+	status TEXT NOT NULL DEFAULT 'processing',
 	created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -61,6 +62,10 @@ CREATE TABLE product_images (
 	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 	deleted_at TIMESTAMP
 );
+
+CREATE UNIQUE INDEX product_images_product_id_angle_unique
+    ON product_images (product_id, angle)
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE product_models (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,6 +116,7 @@ CREATE TABLE orders (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	product_id UUID NOT NULL REFERENCES products(id),
 	buyer_id VARCHAR(255) NOT NULL REFERENCES users(id),
+	seller_id VARCHAR(255) NOT NULL REFERENCES users(id),
 	price INT NOT NULL,
 	status order_status NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -173,6 +179,6 @@ CREATE TABLE feedback_embeddings (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	damage_report_id UUID NOT NULL REFERENCES damage_reports(id),
 	category_id UUID NOT NULL REFERENCES categories(id),
-	embedding vector(1408) NOT NULL,
+	embedding vector(3072) NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

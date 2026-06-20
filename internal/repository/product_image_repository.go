@@ -53,3 +53,29 @@ func (r *ProductImageRepository) CreateAll(ctx context.Context, images []domain.
 	}
 	return ids, nil
 }
+
+func (r *ProductImageRepository) GetURLsByProductID(ctx context.Context, productID string) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT url FROM product_images
+		WHERE product_id = $1::UUID AND deleted_at IS NULL AND angle != 'top'
+		ORDER BY created_at
+		LIMIT 4
+	`, productID)
+	if err != nil {
+		return nil, apperror.ErrInternal.Wrap(err, "failed to query product image urls")
+	}
+	defer rows.Close()
+
+	urls := make([]string, 0)
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, apperror.ErrInternal.Wrap(err, "failed to scan product image url")
+		}
+		urls = append(urls, url)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperror.ErrInternal.Wrap(err, "failed to iterate product image urls")
+	}
+	return urls, nil
+}

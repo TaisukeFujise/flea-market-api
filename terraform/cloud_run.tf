@@ -92,15 +92,6 @@ resource "google_cloud_run_v2_service" "main" {
         }
       }
 
-      env {
-        name = "MESHY_WEBHOOK_SECRET"
-        value_source {
-          secret_key_ref {
-            secret  = "MESHY_WEBHOOK_SECRET"
-            version = "latest"
-          }
-        }
-      }
     }
   }
 

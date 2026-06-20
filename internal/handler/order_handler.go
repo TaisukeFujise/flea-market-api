@@ -72,6 +72,7 @@ type orderListItemResponse struct {
 	Price       int                      `json:"price"`
 	Status      string                   `json:"status"`
 	Role        string                   `json:"role"`
+	HasFeedback bool                     `json:"has_feedback"`
 	CreatedAt   time.Time                `json:"created_at"`
 }
 
@@ -122,10 +123,11 @@ func (h *OrderHandler) GetList(c *echo.Context) error {
 				DisplayName: o.Counterpart.DisplayName,
 				AvatarURL:   o.Counterpart.AvatarURL,
 			},
-			Price:     o.Price,
-			Status:    string(o.Status),
-			Role:      string(o.Role),
-			CreatedAt: o.CreatedAt,
+			Price:       o.Price,
+			Status:      string(o.Status),
+			Role:        string(o.Role),
+			HasFeedback: o.HasFeedback,
+			CreatedAt:   o.CreatedAt,
 		}
 	}
 
@@ -144,6 +146,7 @@ type orderDetailResponse struct {
 	Price         int                      `json:"price"`
 	Status        string                   `json:"status"`
 	Role          string                   `json:"role"`
+	HasFeedback   bool                     `json:"has_feedback"`
 	MessageRoomID string                   `json:"message_room_id"`
 	CreatedAt     time.Time                `json:"created_at"`
 	UpdatedAt     time.Time                `json:"updated_at"`
@@ -180,6 +183,7 @@ func (h *OrderHandler) GetByID(c *echo.Context) error {
 		Price:         order.Price,
 		Status:        string(order.Status),
 		Role:          string(order.Role),
+		HasFeedback:   order.HasFeedback,
 		MessageRoomID: order.MessageRoomID,
 		CreatedAt:     order.CreatedAt,
 		UpdatedAt:     order.UpdatedAt,

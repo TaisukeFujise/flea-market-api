@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"math"
 	"net/http"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/apperror"
@@ -12,6 +13,7 @@ import (
 
 type DamageService interface {
 	ListByProductID(ctx context.Context, productID string) ([]domain.Damage, error)
+	UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error
 }
 
 type DamageHandler struct {
@@ -38,6 +40,12 @@ type damageResponse struct {
 
 type listDamagesResponse struct {
 	Damages []damageResponse `json:"damages"`
+}
+
+type updateDamageModelCoordinatesRequest struct {
+	ModelX *float64 `json:"model_x" validate:"required"`
+	ModelY *float64 `json:"model_y" validate:"required"`
+	ModelZ *float64 `json:"model_z" validate:"required"`
 }
 
 func (h *DamageHandler) ListByProductID(c *echo.Context) error {
@@ -68,4 +76,39 @@ func (h *DamageHandler) ListByProductID(c *echo.Context) error {
 		}
 	}
 	return c.JSON(http.StatusOK, listDamagesResponse{Damages: resp})
+}
+
+func (h *DamageHandler) UpdateModelCoordinates(c *echo.Context) error {
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return apperror.ErrValidation.New("invalid id")
+	}
+
+	var req updateDamageModelCoordinatesRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.ErrValidation.Wrap(err, "invalid request body")
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+	if invalidCoordinate(req.ModelX) || invalidCoordinate(req.ModelY) || invalidCoordinate(req.ModelZ) {
+		return apperror.ErrValidation.New("model coordinates must be finite numbers")
+	}
+
+	err := h.service.UpdateModelCoordinates(c.Request().Context(), id, domain.DamageModelCoordinatesUpdate{
+		ModelX: *req.ModelX,
+		ModelY: *req.ModelY,
+		ModelZ: *req.ModelZ,
+	})
+	if err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+func invalidCoordinate(v *float64) bool {
+	if v == nil {
+		return true
+	}
+	return math.IsNaN(*v) || math.IsInf(*v, 0)
 }

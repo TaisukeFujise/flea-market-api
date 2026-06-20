@@ -55,7 +55,6 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	productService := service.NewProductService(productRepo, viewingHistoryRepo, productModelRepo, imageRepo, meshyClient, gcs, hub)
 	productHandler := handler.NewProductHandler(productService)
 
-
 	orderRepo := repository.NewOrderRepository(db)
 	orderService := service.NewOrderService(orderRepo, productRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -114,7 +113,7 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 
 	// damages
 	public.GET("/products/:id/damages", damageHandler.ListByProductID)
-	authed.PATCH("/damages/:id", notImplemented) // 3Dフェーズで実装
+	authed.PATCH("/damages/:id", damageHandler.UpdateModelCoordinates)
 
 	// comments
 	public.GET("/products/:id/comments", commentHandler.GetList)

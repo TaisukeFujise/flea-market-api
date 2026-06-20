@@ -77,3 +77,25 @@ func (r *DamageRepository) ListByProductID(ctx context.Context, productID string
 	}
 	return damages, nil
 }
+
+func (r *DamageRepository) UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE damages
+		SET model_x = $1,
+		    model_y = $2,
+		    model_z = $3
+		WHERE id = $4::UUID
+		  AND deleted_at IS NULL
+	`, input.ModelX, input.ModelY, input.ModelZ, id)
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to update damage model coordinates")
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return apperror.ErrInternal.Wrap(err, "failed to get affected damage rows")
+	}
+	if n == 0 {
+		return apperror.ErrNotFound.New("damage not found")
+	}
+	return nil
+}

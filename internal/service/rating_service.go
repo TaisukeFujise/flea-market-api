@@ -25,8 +25,14 @@ func (s *RatingService) Create(ctx context.Context, orderID, uid string, score i
 	if err != nil {
 		return err
 	}
-	if order.BuyerID != uid {
-		return apperror.ErrForbidden.New("only buyer can submit feedback")
+	var rateeID string
+	switch uid {
+	case order.BuyerID:
+		rateeID = order.SellerID
+	case order.SellerID:
+		rateeID = order.BuyerID
+	default:
+		return apperror.ErrForbidden.New("only buyer or seller can submit feedback")
 	}
 	if order.Status != domain.OrderStatusCompleted {
 		return apperror.ErrBadRequest.New("order must be completed to submit feedback")
@@ -34,7 +40,7 @@ func (s *RatingService) Create(ctx context.Context, orderID, uid string, score i
 	return s.ratingRepo.Create(ctx, domain.RatingCreate{
 		OrderID: orderID,
 		RaterID: uid,
-		RateeID: order.SellerID,
+		RateeID: rateeID,
 		Score:   score,
 	})
 }

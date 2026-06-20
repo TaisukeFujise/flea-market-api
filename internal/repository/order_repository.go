@@ -98,7 +98,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, f dom
 			CASE WHEN o.buyer_id = $1 THEN su.id      ELSE bu.id           END,
 			CASE WHEN o.buyer_id = $1 THEN su.display_name ELSE bu.display_name END,
 			CASE WHEN o.buyer_id = $1 THEN su.avatar_url   ELSE bu.avatar_url   END,
-			(o.buyer_id = $1 AND o.status = 'completed'::order_status AND r.id IS NOT NULL)
+			(o.status = 'completed'::order_status AND r.id IS NOT NULL)
 		FROM orders o
 		JOIN products p ON p.id = o.product_id AND p.deleted_at IS NULL
 		LEFT JOIN users bu ON bu.id = o.buyer_id AND bu.deleted_at IS NULL
@@ -219,7 +219,7 @@ func (r *OrderRepository) FindByIDForUser(ctx context.Context, id, uid string) (
 			CASE WHEN o.buyer_id = $2 THEN su.display_name ELSE bu.display_name END,
 			CASE WHEN o.buyer_id = $2 THEN su.avatar_url   ELSE bu.avatar_url   END,
 			o.price, o.status::TEXT,
-			(o.buyer_id = $2 AND o.status = 'completed'::order_status AND r.id IS NOT NULL),
+			(o.status = 'completed'::order_status AND r.id IS NOT NULL),
 			mr.id,
 			o.created_at, o.updated_at
 		FROM orders o

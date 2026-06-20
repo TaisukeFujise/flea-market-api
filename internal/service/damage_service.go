@@ -9,7 +9,7 @@ import (
 
 type damageRepository interface {
 	ListByProductID(ctx context.Context, productID string) ([]domain.Damage, error)
-	UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error
+	UpdateModelCoordinates(ctx context.Context, id string, userID string, input domain.DamageModelCoordinatesUpdate) error
 }
 
 type damageProductRepository interface {
@@ -36,6 +36,6 @@ func (s *DamageService) ListByProductID(ctx context.Context, productID string) (
 	return s.repo.ListByProductID(ctx, productID)
 }
 
-func (s *DamageService) UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error {
-	return s.repo.UpdateModelCoordinates(ctx, id, input)
+func (s *DamageService) UpdateModelCoordinates(ctx context.Context, id string, userID string, input domain.DamageModelCoordinatesUpdate) error {
+	return s.repo.UpdateModelCoordinates(ctx, id, userID, input)
 }

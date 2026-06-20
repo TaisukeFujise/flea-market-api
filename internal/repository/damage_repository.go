@@ -78,15 +78,21 @@ func (r *DamageRepository) ListByProductID(ctx context.Context, productID string
 	return damages, nil
 }
 
-func (r *DamageRepository) UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error {
+func (r *DamageRepository) UpdateModelCoordinates(ctx context.Context, id string, userID string, input domain.DamageModelCoordinatesUpdate) error {
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE damages
+		UPDATE damages d
 		SET model_x = $1,
 		    model_y = $2,
 		    model_z = $3
-		WHERE id = $4::UUID
-		  AND deleted_at IS NULL
-	`, input.ModelX, input.ModelY, input.ModelZ, id)
+		FROM product_images pi
+		JOIN products p ON p.id = pi.product_id
+		WHERE d.id = $4::UUID
+		  AND d.image_id = pi.id
+		  AND p.user_id = $5
+		  AND d.deleted_at IS NULL
+		  AND pi.deleted_at IS NULL
+		  AND p.deleted_at IS NULL
+	`, input.ModelX, input.ModelY, input.ModelZ, id, userID)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to update damage model coordinates")
 	}

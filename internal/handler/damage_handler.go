@@ -13,7 +13,7 @@ import (
 
 type DamageService interface {
 	ListByProductID(ctx context.Context, productID string) ([]domain.Damage, error)
-	UpdateModelCoordinates(ctx context.Context, id string, input domain.DamageModelCoordinatesUpdate) error
+	UpdateModelCoordinates(ctx context.Context, id string, userID string, input domain.DamageModelCoordinatesUpdate) error
 }
 
 type DamageHandler struct {
@@ -83,6 +83,10 @@ func (h *DamageHandler) UpdateModelCoordinates(c *echo.Context) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return apperror.ErrValidation.New("invalid id")
 	}
+	uid, ok := c.Get("firebase_uid").(string)
+	if !ok || uid == "" {
+		return apperror.ErrUnauthorized.New("unauthorized")
+	}
 
 	var req updateDamageModelCoordinatesRequest
 	if err := c.Bind(&req); err != nil {
@@ -95,7 +99,7 @@ func (h *DamageHandler) UpdateModelCoordinates(c *echo.Context) error {
 		return apperror.ErrValidation.New("model coordinates must be finite numbers")
 	}
 
-	err := h.service.UpdateModelCoordinates(c.Request().Context(), id, domain.DamageModelCoordinatesUpdate{
+	err := h.service.UpdateModelCoordinates(c.Request().Context(), id, uid, domain.DamageModelCoordinatesUpdate{
 		ModelX: *req.ModelX,
 		ModelY: *req.ModelY,
 		ModelZ: *req.ModelZ,

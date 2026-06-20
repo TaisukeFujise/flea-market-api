@@ -41,6 +41,7 @@ type OrderListItem struct {
 	Price       int
 	Status      OrderStatus
 	Role        OrderRole
+	HasFeedback bool
 	CreatedAt   time.Time
 }
 
@@ -59,6 +60,7 @@ type OrderDetail struct {
 	Counterpart   UserSummary
 	Price         int
 	Status        OrderStatus
+	HasFeedback   bool
 	MessageRoomID string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

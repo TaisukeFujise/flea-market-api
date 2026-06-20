@@ -72,17 +72,12 @@ func (r *MessageRepository) ListByRoomID(ctx context.Context, roomID string, f d
 }
 
 func (r *MessageRepository) Create(ctx context.Context, input domain.MessageCreate) error {
-	result, err := r.db.ExecContext(ctx, `
+	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO messages (room_id, sender_id, content)
-		SELECT $1::UUID, $2, $3
-		FROM message_rooms
-		WHERE id = $1::UUID AND deleted_at IS NULL AND (buyer_id = $2 OR seller_id = $2)
+		VALUES ($1::UUID, $2, $3)
 	`, input.RoomID, input.SenderID, input.Content)
 	if err != nil {
 		return apperror.ErrInternal.Wrap(err, "failed to insert message")
-	}
-	if n, _ := result.RowsAffected(); n == 0 {
-		return apperror.ErrNotFound.New("message room not found")
 	}
 	return nil
 }

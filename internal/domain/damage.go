@@ -42,6 +42,12 @@ type DamageCreate struct {
 	Description *string
 }
 
+type DamageModelCoordinatesUpdate struct {
+	ModelX float64
+	ModelY float64
+	ModelZ float64
+}
+
 // DamageReportCreate は購入者が受け取り後に報告する傷を damage_reports テーブルに保存するための入力。
 // damages テーブル（AI検出）とは別テーブル。
 type DamageReportCreate struct {

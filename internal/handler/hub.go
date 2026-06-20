@@ -17,6 +17,7 @@ const (
 	EventDamageDetectionComplete EventType = "damage_detection_complete"
 	EventDamageDetectionFailed   EventType = "damage_detection_failed"
 	EventModelGenerationComplete EventType = "model_generation_complete"
+	EventModelGenerationFailed   EventType = "model_generation_failed"
 )
 
 type wsEvent struct {
@@ -73,10 +74,12 @@ func (h *Hub) Run() {
 		case req := <-h.send:
 			c, ok := h.clients[req.userID]
 			if !ok {
+				slog.Warn("ws notification dropped: client not connected", "userID", req.userID, "eventType", req.payload.Type)
 				continue
 			}
 			writeCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 			if err := wsjson.Write(writeCtx, c.conn, req.payload); err != nil {
+				slog.Warn("ws notification dropped: write failed", "userID", req.userID, "eventType", req.payload.Type, "error", err)
 				delete(h.clients, c.userID)
 				c.cancel()
 			}
@@ -162,5 +165,47 @@ func (h *Hub) NotifyDamageDetectionFailed(userID string) {
 	}:
 	default:
 		slog.Warn("damage_detection_failed notification dropped: send channel full", "userID", userID)
+	}
+}
+
+type modelGenerationCompletePayload struct {
+	ProductID string `json:"product_id"`
+	GlbURL    string `json:"glb_url"`
+}
+
+type modelGenerationFailedPayload struct {
+	ProductID string `json:"product_id"`
+}
+
+// NotifyModelGenerationComplete implements service.ModelNotifier.
+func (h *Hub) NotifyModelGenerationComplete(userID string, notif service.ModelGenerationNotification) {
+	select {
+	case h.send <- sendRequest{
+		userID: userID,
+		payload: wsEvent{
+			Type: EventModelGenerationComplete,
+			Payload: modelGenerationCompletePayload{
+				ProductID: notif.ProductID,
+				GlbURL:    notif.GlbURL,
+			},
+		},
+	}:
+	default:
+		slog.Warn("model_generation_complete notification dropped: send channel full", "userID", userID)
+	}
+}
+
+// NotifyModelGenerationFailed implements service.ModelNotifier.
+func (h *Hub) NotifyModelGenerationFailed(userID, productID string) {
+	select {
+	case h.send <- sendRequest{
+		userID: userID,
+		payload: wsEvent{
+			Type:    EventModelGenerationFailed,
+			Payload: modelGenerationFailedPayload{ProductID: productID},
+		},
+	}:
+	default:
+		slog.Warn("model_generation_failed notification dropped: send channel full", "userID", userID)
 	}
 }

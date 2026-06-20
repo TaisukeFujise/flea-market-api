@@ -10,6 +10,7 @@ import (
 	"github.com/TaisukeFujise/flea-market-api/internal/handler"
 	"github.com/TaisukeFujise/flea-market-api/internal/infra/ai"
 	gcsclient "github.com/TaisukeFujise/flea-market-api/internal/infra/gcs"
+	"github.com/TaisukeFujise/flea-market-api/internal/infra/meshy"
 	mw "github.com/TaisukeFujise/flea-market-api/internal/middleware"
 	"github.com/TaisukeFujise/flea-market-api/internal/repository"
 	"github.com/TaisukeFujise/flea-market-api/internal/service"
@@ -48,9 +49,12 @@ func NewRouter(db *sql.DB, fb *auth.Client, gcs *gcsclient.Client, vertexAI *ai.
 	imageHandler := handler.NewImageHandler(imageService)
 
 	productRepo := repository.NewProductRepository(db)
+	productModelRepo := repository.NewProductModelRepository(db)
 	viewingHistoryRepo := repository.NewViewingHistoryRepository(db)
-	productService := service.NewProductService(productRepo, viewingHistoryRepo)
+	meshyClient := meshy.NewClient(os.Getenv("MESHY_API_KEY"))
+	productService := service.NewProductService(productRepo, viewingHistoryRepo, productModelRepo, imageRepo, meshyClient, gcs, hub)
 	productHandler := handler.NewProductHandler(productService)
+
 
 	orderRepo := repository.NewOrderRepository(db)
 	orderService := service.NewOrderService(orderRepo, productRepo)

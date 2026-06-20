@@ -111,3 +111,19 @@ func (c *Client) GetJobStatus(ctx context.Context, jobID string) (status string,
 	}
 	return result.Status, result.ModelURLs["glb"], nil
 }
+
+func (c *Client) Download(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("meshy download: status=%d url=%s", resp.StatusCode, url)
+	}
+	return resp.Body, nil
+}

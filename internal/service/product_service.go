@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"io"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/TaisukeFujise/flea-market-api/internal/domain"
@@ -37,6 +37,7 @@ type ProductImageURLRepository interface {
 type ModelGenerationClient interface {
 	CreateJob(ctx context.Context, imageURLs []string) (string, error)
 	GetJobStatus(ctx context.Context, jobID string) (status string, glbURL string, err error)
+	Download(ctx context.Context, url string) (io.ReadCloser, error)
 }
 
 type ModelGenerationNotification struct {
@@ -95,10 +96,23 @@ func (s *ProductService) Create(ctx context.Context, sellerID string, input doma
 		return p, nil
 	}
 
+	// setModelFailed marks the model row as failed without sending a WebSocket notification,
+	// since the goroutine hasn't started yet and the user doesn't expect async feedback at this point.
+	setModelFailed := func() {
+		fCtx, fCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer fCancel()
+		_ = s.modelRepo.UpdateStatus(fCtx, modelID, domain.ModelStatusFailed)
+	}
+
 	imageURLs, err := s.imageRepo.GetURLsByProductID(ctx, p.ID)
-	if err != nil || len(imageURLs) == 0 {
+	if err != nil {
 		slog.Error("failed to get image URLs for model generation", "productID", p.ID, "error", err)
-		_ = s.modelRepo.UpdateStatus(context.Background(), modelID, domain.ModelStatusFailed)
+		setModelFailed()
+		return p, nil
+	}
+	if len(imageURLs) == 0 {
+		slog.Warn("no eligible images for model generation, skipping", "productID", p.ID)
+		setModelFailed()
 		return p, nil
 	}
 
@@ -159,21 +173,15 @@ func (s *ProductService) runModelGeneration(modelID, productID, sellerUID string
 		return
 	}
 
-	dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, meshyGLBURL, nil)
-	if err != nil {
-		slog.Error("failed to create GLB download request", "error", err)
-		s.markModelFailed(modelID, productID, sellerUID)
-		return
-	}
-	dlResp, err := http.DefaultClient.Do(dlReq)
+	body, err := s.meshyClient.Download(ctx, meshyGLBURL)
 	if err != nil {
 		slog.Error("failed to download GLB from Meshy", "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
-	defer dlResp.Body.Close()
+	defer body.Close()
 
-	gcsURL, err := s.storage.Upload(ctx, "product-models/"+modelID+".glb", dlResp.Body, "model/gltf-binary")
+	gcsURL, err := s.storage.Upload(ctx, "product-models/"+modelID+".glb", body, "model/gltf-binary")
 	if err != nil {
 		slog.Error("failed to upload GLB to GCS", "productID", productID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
@@ -182,6 +190,7 @@ func (s *ProductService) runModelGeneration(modelID, productID, sellerUID string
 
 	if err := s.modelRepo.UpdateDone(ctx, modelID, gcsURL); err != nil {
 		slog.Error("failed to update model done", "modelID", modelID, "error", err)
+		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
 
@@ -194,7 +203,9 @@ func (s *ProductService) runModelGeneration(modelID, productID, sellerUID string
 func (s *ProductService) pollUntilDone(ctx context.Context, jobID string) (glbURL string, ok bool) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	for i := 0; i < 60; i++ {
+	const maxErrors = 10
+	errorCount := 0
+	for {
 		select {
 		case <-ctx.Done():
 			return "", false
@@ -202,17 +213,26 @@ func (s *ProductService) pollUntilDone(ctx context.Context, jobID string) (glbUR
 		}
 		status, url, err := s.meshyClient.GetJobStatus(ctx, jobID)
 		if err != nil {
-			slog.Warn("meshy poll error", "jobID", jobID, "error", err)
+			errorCount++
+			slog.Warn("meshy poll error", "jobID", jobID, "error", err, "errorCount", errorCount)
+			if errorCount >= maxErrors {
+				slog.Error("too many consecutive poll errors, giving up", "jobID", jobID)
+				return "", false
+			}
 			continue
 		}
-		switch status {
-		case "SUCCEEDED":
+		errorCount = 0
+		switch domain.MeshyJobStatus(status) {
+		case domain.MeshyJobSucceeded:
+			if url == "" {
+				slog.Error("meshy: SUCCEEDED but no glb URL in response", "jobID", jobID)
+				return "", false
+			}
 			return url, true
-		case "FAILED", "EXPIRED":
+		case domain.MeshyJobFailed, domain.MeshyJobExpired:
 			return "", false
 		}
 	}
-	return "", false
 }
 
 func (s *ProductService) markModelFailed(modelID, productID, userID string) {

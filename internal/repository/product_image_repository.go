@@ -57,10 +57,10 @@ func (r *ProductImageRepository) CreateAll(ctx context.Context, images []domain.
 func (r *ProductImageRepository) GetURLsByProductID(ctx context.Context, productID string) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT url FROM product_images
-		WHERE product_id = $1::UUID AND deleted_at IS NULL AND angle != 'top'
+		WHERE product_id = $1::UUID AND deleted_at IS NULL AND angle != $2
 		ORDER BY created_at
 		LIMIT 4
-	`, productID)
+	`, productID, string(domain.AngleTop))
 	if err != nil {
 		return nil, apperror.ErrInternal.Wrap(err, "failed to query product image urls")
 	}

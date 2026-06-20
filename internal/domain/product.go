@@ -26,6 +26,14 @@ const (
 	ModelStatusFailed     ModelStatus = "failed"
 )
 
+type MeshyJobStatus string
+
+const (
+	MeshyJobSucceeded MeshyJobStatus = "SUCCEEDED"
+	MeshyJobFailed    MeshyJobStatus = "FAILED"
+	MeshyJobExpired   MeshyJobStatus = "EXPIRED"
+)
+
 type ProductSort string
 
 const (

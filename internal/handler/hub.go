@@ -61,10 +61,12 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case c := <-h.register:
-			if _, ok := h.clients[c.userID]; !ok {
-				h.clients[c.userID] = make(map[*Client]struct{})
+			if old, ok := h.clients[c.userID]; ok {
+				for existing := range old {
+					existing.cancel()
+				}
 			}
-			h.clients[c.userID][c] = struct{}{}
+			h.clients[c.userID] = map[*Client]struct{}{c: {}}
 		case c := <-h.unregister:
 			if clients, ok := h.clients[c.userID]; ok {
 				if _, exists := clients[c]; exists {
@@ -82,17 +84,15 @@ func (h *Hub) Run() {
 				continue
 			}
 			for c := range clients {
-				writeCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
-				if err := wsjson.Write(writeCtx, c.conn, req.payload); err != nil {
-					slog.Warn("ws notification dropped: write failed", "userID", req.userID, "eventType", req.payload.Type, "error", err)
-					delete(clients, c)
-					c.cancel()
-					c.conn.CloseNow()
-				}
-				cancel()
-			}
-			if len(clients) == 0 {
-				delete(h.clients, req.userID)
+				c, payload := c, req.payload
+				go func() {
+					writeCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+					defer cancel()
+					if err := wsjson.Write(writeCtx, c.conn, payload); err != nil {
+						slog.Warn("ws notification dropped: write failed", "userID", c.userID, "eventType", payload.Type, "error", err)
+						c.cancel()
+					}
+				}()
 			}
 		}
 	}

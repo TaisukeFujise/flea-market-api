@@ -75,6 +75,9 @@ make up
 
 # 4. マイグレーション実行（コンテナ起動後）
 make migrate-local
+
+# 5. 開発用サンプルデータ投入（任意）
+make seed-local
 ```
 
 ### 主要 make コマンド
@@ -88,6 +91,9 @@ make migrate-local
 | `make dev` | ローカルで直接サーバーを起動（要 DB 起動済み） |
 | `make migrate-local` | ローカル DB にマイグレーション適用 |
 | `make migrate-local-down` | ローカル DB のマイグレーションをロールバック |
+| `make seed-local` | ローカル DB に開発用サンプルデータを投入 |
+
+カテゴリマスターは本番でも必要な初期データのため、マイグレーションで管理します。`db/seeds` 配下はローカル開発用のユーザー・商品・注文データです。
 
 ### 環境変数
 
@@ -125,4 +131,3 @@ terraform apply
 | `frontend_origin` | フロントエンドの Vercel URL（本番 CORS 許可オリジン） |
 
 `terraform.tfvars` は `.gitignore` に含まれているためコミットされません。
-

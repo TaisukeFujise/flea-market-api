@@ -1,4 +1,4 @@
--- 商品（カテゴリIDは 001_categories.sql で定義済みの固定UUID）
+-- 商品（カテゴリIDは migrations/000003_seed_categories.up.sql で定義済みの固定UUID）
 INSERT INTO products (id, user_id, category_id, title, description, price, condition, condition_note, status) VALUES
   (
     '10000000-0000-0000-0000-000000000001',

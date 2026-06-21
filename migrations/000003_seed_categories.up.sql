@@ -1,5 +1,5 @@
 -- カテゴリマスター
--- 親カテゴリ → 子カテゴリの順に INSERT する
+-- 本番環境でも必要な初期データとして migration で管理する。
 
 INSERT INTO categories (id, parent_id, name) VALUES
   ('00000000-0000-0000-0000-000000000001', NULL, '家電'),
@@ -22,4 +22,7 @@ INSERT INTO categories (id, parent_id, name) VALUES
 
   ('00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000004', '本'),
   ('00000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000004', 'ゲーム')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  parent_id = EXCLUDED.parent_id,
+  name = EXCLUDED.name,
+  updated_at = NOW();

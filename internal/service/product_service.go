@@ -153,29 +153,32 @@ func (s *ProductService) runModelGeneration(modelID, productID, sellerUID string
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
+	slog.Info("model generation started", "productID", productID, "modelID", modelID, "imageCount", len(imageURLs))
+
 	jobID, err := s.meshyClient.CreateJob(ctx, imageURLs)
 	if err != nil {
-		slog.Error("meshy create job failed", "productID", productID, "error", err)
+		slog.Error("meshy create job failed", "productID", productID, "modelID", modelID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
+	slog.Info("meshy job created", "productID", productID, "modelID", modelID, "jobID", jobID)
 
 	if err := s.modelRepo.UpdateJobID(ctx, modelID, jobID); err != nil {
-		slog.Error("failed to update model job_id", "modelID", modelID, "error", err)
+		slog.Error("failed to update model job_id", "productID", productID, "modelID", modelID, "jobID", jobID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
 
 	meshyGLBURL, ok := s.pollUntilDone(ctx, jobID)
 	if !ok {
-		slog.Error("model generation failed or timed out", "productID", productID, "jobID", jobID)
+		slog.Error("model generation failed or timed out", "productID", productID, "modelID", modelID, "jobID", jobID)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
 
 	body, err := s.meshyClient.Download(ctx, meshyGLBURL)
 	if err != nil {
-		slog.Error("failed to download GLB from Meshy", "error", err)
+		slog.Error("failed to download GLB from Meshy", "productID", productID, "modelID", modelID, "jobID", jobID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
@@ -183,16 +186,18 @@ func (s *ProductService) runModelGeneration(modelID, productID, sellerUID string
 
 	gcsURL, err := s.storage.Upload(ctx, "product-models/"+modelID+".glb", body, "model/gltf-binary")
 	if err != nil {
-		slog.Error("failed to upload GLB to GCS", "productID", productID, "error", err)
+		slog.Error("failed to upload GLB to GCS", "productID", productID, "modelID", modelID, "jobID", jobID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
 
 	if err := s.modelRepo.UpdateDone(ctx, modelID, gcsURL); err != nil {
-		slog.Error("failed to update model done", "modelID", modelID, "error", err)
+		slog.Error("failed to update model done", "productID", productID, "modelID", modelID, "jobID", jobID, "error", err)
 		s.markModelFailed(modelID, productID, sellerUID)
 		return
 	}
+
+	slog.Info("model generation completed", "productID", productID, "modelID", modelID, "jobID", jobID)
 
 	s.modelNotifier.NotifyModelGenerationComplete(sellerUID, ModelGenerationNotification{
 		ProductID: productID,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -47,7 +48,7 @@ type jobStatusResponse struct {
 }
 
 func (c *Client) CreateJob(ctx context.Context, imageURLs []string) (string, error) {
-	body, err := json.Marshal(createJobRequest{
+	payload := createJobRequest{
 		ImageURLs:     imageURLs,
 		AIModel:       "meshy-6",
 		ShouldTexture: true,
@@ -57,7 +58,8 @@ func (c *Client) CreateJob(ctx context.Context, imageURLs []string) (string, err
 		AutoSize:      true,
 		OriginAt:      "bottom",
 		TargetFormats: []string{"glb"},
-	})
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -68,6 +70,8 @@ func (c *Client) CreateJob(ctx context.Context, imageURLs []string) (string, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+
+	slog.Info("requesting Meshy model generation", "endpoint", req.URL.Path, "imageCount", len(payload.ImageURLs), "aiModel", payload.AIModel, "targetFormats", payload.TargetFormats)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

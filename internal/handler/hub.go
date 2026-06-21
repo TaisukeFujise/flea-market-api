@@ -42,7 +42,7 @@ type sendRequest struct {
 }
 
 type Hub struct {
-	clients    map[string]*Client
+	clients    map[string]map[*Client]struct{}
 	register   chan *Client
 	unregister chan *Client
 	send       chan sendRequest
@@ -50,7 +50,7 @@ type Hub struct {
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[string]*Client),
+		clients:    make(map[string]map[*Client]struct{}),
 		register:   make(chan *Client, 16),
 		unregister: make(chan *Client, 16),
 		send:       make(chan sendRequest, 64),
@@ -61,29 +61,39 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case c := <-h.register:
-			if old, ok := h.clients[c.userID]; ok {
-				old.cancel()
-				old.conn.CloseNow()
+			if _, ok := h.clients[c.userID]; !ok {
+				h.clients[c.userID] = make(map[*Client]struct{})
 			}
-			h.clients[c.userID] = c
+			h.clients[c.userID][c] = struct{}{}
 		case c := <-h.unregister:
-			if existing, ok := h.clients[c.userID]; ok && existing == c {
-				delete(h.clients, c.userID)
-				c.cancel()
+			if clients, ok := h.clients[c.userID]; ok {
+				if _, exists := clients[c]; exists {
+					delete(clients, c)
+					c.cancel()
+				}
+				if len(clients) == 0 {
+					delete(h.clients, c.userID)
+				}
 			}
 		case req := <-h.send:
-			c, ok := h.clients[req.userID]
-			if !ok {
+			clients, ok := h.clients[req.userID]
+			if !ok || len(clients) == 0 {
 				slog.Warn("ws notification dropped: client not connected", "userID", req.userID, "eventType", req.payload.Type)
 				continue
 			}
-			writeCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
-			if err := wsjson.Write(writeCtx, c.conn, req.payload); err != nil {
-				slog.Warn("ws notification dropped: write failed", "userID", req.userID, "eventType", req.payload.Type, "error", err)
-				delete(h.clients, c.userID)
-				c.cancel()
+			for c := range clients {
+				writeCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+				if err := wsjson.Write(writeCtx, c.conn, req.payload); err != nil {
+					slog.Warn("ws notification dropped: write failed", "userID", req.userID, "eventType", req.payload.Type, "error", err)
+					delete(clients, c)
+					c.cancel()
+					c.conn.CloseNow()
+				}
+				cancel()
 			}
-			cancel()
+			if len(clients) == 0 {
+				delete(h.clients, req.userID)
+			}
 		}
 	}
 }

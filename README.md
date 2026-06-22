@@ -1,19 +1,11 @@
 # Loupe — 中古品の状態確認を変えるフリマアプリ
 
-AIによる商品の傷検出と3Dモデル上への可視化を備えたフリマWebアプリのバックエンドAPIです。
+AIによる商品の傷検出と3Dモデルへの傷マッピングを備えたフリマWebアプリのバックエンドAPIです。
 
 これにより、「写真が出品者ごとにバラつき比較しにくい問題」と「主観的な状態評価によるトラブル」を解消します。
 
 **<関連リポジトリ>：** [フロントエンド](https://github.com/TaisukeFujise/flea-market-web) 
 
-## デモ
-
-<a href="https://youtu.be/xpiIk5NCf9U">
-  <img src="https://img.youtube.com/vi/xpiIk5NCf9U/maxresdefault.jpg" width="600">
-  <br>▶ デモを見る
-</a>
-
----
 
 ## 主な機能
 

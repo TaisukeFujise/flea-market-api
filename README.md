@@ -1,14 +1,34 @@
-# flea-market-api
+# Loupe — 中古品の状態確認を変えるフリマアプリ
 
-3DスキャンとAIで商品の傷を検出・可視化するフリマアプリの**バックエンドAPI**。
+AIによる商品の傷検出と3Dモデル上への可視化を備えたフリマWebアプリのバックエンドAPIです。
+写真が出品者ごとにバラつき比較しにくい問題と、主観的な状態評価によるトラブルを解消します。
 
-**-> フロントエンドリポジトリ:** [flea-market-web](https://github.com/TaisukeFujise/flea-market-web) 
+**関連リポジトリ：** [フロントエンド](https://github.com/TaisukeFujise/flea-market-web) 
+
+## デモ
+
+<a href="https://youtu.be/xpiIk5NCf9U">
+  <img src="https://img.youtube.com/vi/xpiIk5NCf9U/maxresdefault.jpg" width="600">
+  <br>▶ デモを見る
+</a>
 
 ---
 
-## 概要
+## 主な機能
 
-商品状態の認識ズレによるトラブルを解消するため、AIが商品の傷・汚れを客観的に検出・評価するフリマプラットフォームのAPIサーバー。
+- ユーザー登録・認証（Firebase Authentication）
+- アバター画像のアップロード
+- 商品CRUD・購入フロー
+- 画像アップロード（5方向: front/back/right/left/top）→ Gemini 2.5 Flashによる傷検出（bbox付き）・商品状態の自動判定・説明文生成（非同期）
+- Meshy APIを使った写真 → 3Dモデル（GLB）生成（非同期・WebSocket通知）
+- 傷の3Dモデル上座標マッピング
+- 購入者による傷レポート（取引完了後）
+- 売買双方による評価（取引完了後）
+- コメント機能
+- いいね機能
+- 閲覧履歴
+- WebSocketを使ったDMメッセージ・リアルタイム通知（傷検出完了・3Dモデル生成完了）
+- 商品検索（キーワード・カテゴリ・価格帯・コンディション・並び順）
 
 ## 技術スタック
 
@@ -18,21 +38,10 @@
 | データベース | Cloud SQL (PostgreSQL) + pgvector |
 | ストレージ | Cloud Storage |
 | 認証 | Firebase Authentication |
-| AI: 傷検出・状態判定 | Gemini Vision API (structured output) |
-| AI: フィードバックEmbedding | Vertex AI Multimodal Embedding |
+| AI: 傷検出・状態判定 | Gemini 2.5 Flash via Vertex AI (structured output) |
 | 3Dモデル生成 | Meshy API |
 | リアルタイム通信 | WebSocket |
 | インフラ管理 | Terraform |
-
-## 主な機能
-
-- ユーザー登録・認証（Firebase Authentication）
-- 商品CRUD・購入フロー
-- Gemini Visionによる傷検出（bbox）・商品状態の自動判定・説明文生成
-- 購入者の傷報告 → Vertex AI EmbeddingでフィードバックをGeminiのfew-shotに反映
-- Meshy APIを使った写真 → 3Dモデル（GLB）生成（3Dフェーズ）
-- WebSocketを使ったDM・リアルタイム通知
-- 商品検索（キーワード・カテゴリ・価格帯・写真検索）
 
 ## アーキテクチャ
 
@@ -40,8 +49,7 @@
 React (Vercel)
   ↓ REST / WebSocket
 Go API (Cloud Run)                    ← このリポジトリ
-  ├─ Gemini Vision API（傷検出・状態判定）
-  ├─ Vertex AI Multimodal Embedding（フィードバック）
+  ├─ Gemini 2.5 Flash via Vertex AI（傷検出・状態判定）
   ├─ Meshy API（3Dモデル生成）
   ├─ Cloud Storage
   └─ Cloud SQL (PostgreSQL + pgvector)
@@ -100,6 +108,13 @@ make seed-local
 | 変数名 | 説明 |
 |---|---|
 | `DATABASE_URL` | PostgreSQL 接続 URL（例: `postgres://postgres:pass@localhost:5432/flea?sslmode=disable`） |
+| `GOOGLE_CLOUD_PROJECT` | GCP プロジェクト ID（Vertex AI 用） |
+| `VERTEX_AI_LOCATION` | Vertex AI リージョン（例: `us-central1`） |
+| `GCS_BUCKET_NAME` | Cloud Storage バケット名（画像・3Dモデル保存先） |
+| `MESHY_API_KEY` | Meshy API キー（3Dモデル生成用） |
+| `FRONTEND_ORIGIN` | フロントエンドの URL（CORS・WebSocket Origin 許可用） |
+
+`DATABASE_URL` のみローカル開発に必須。Vertex AI / Meshy を使う機能はそれぞれの変数が必要。
 
 ---
 

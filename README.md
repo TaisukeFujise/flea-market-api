@@ -1,5 +1,7 @@
 # Loupe — 中古品の状態確認を変えるフリマアプリ
 
+> 🏆 Won 1st place at UTTC Hackathon — Backend of [Loupe](https://github.com/TaisukeFujise/Loupe)
+
 AIによる商品の傷検出と3Dモデルへの傷マッピングを備えたフリマWebアプリのバックエンドAPIです。
 
 これにより、「写真が出品者ごとにバラつき比較しにくい問題」と「主観的な状態評価によるトラブル」を解消します。
